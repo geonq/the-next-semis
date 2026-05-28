@@ -1,11 +1,16 @@
 # Elixir / Phoenix build artifacts
 _build/
+cover/
 deps/
+doc/
+.fetch
 *.beam
 *.ez
 erl_crash.dump
+tmp/
 .elixir_ls/
 .lexical/
+the_next_semis-*.tar
 
 # Phoenix compiled assets
 priv/static/assets/
@@ -14,6 +19,8 @@ priv/static/cache_manifest.json
 # Mix-installed esbuild/tailwind binaries
 priv/static/esbuild
 priv/static/tailwind
+assets/node_modules/
+npm-debug.log
 
 # Env
 .env

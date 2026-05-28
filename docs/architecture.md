@@ -48,7 +48,8 @@ lib/
     └── router.ex
 
 priv/
-├── data/                      # static JSON + thesis.md
+├── priv/
+│   └── data/                  # static JSON + thesis.md
 └── static/
 
 assets/

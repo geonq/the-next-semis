@@ -1,0 +1,53 @@
+<Layouts.flash_group flash={@flash} />
+
+<div class="min-h-screen">
+  <header class="border-b border-[var(--color-grid)] bg-base-100/90">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
+      <a href="/" class="text-sm font-semibold uppercase tracking-wide text-[var(--color-accent)]">
+        The Next Semis
+      </a>
+      <nav class="flex items-center gap-1 text-sm text-base-content/70">
+        <a class="rounded px-3 py-2 hover:bg-base-200 hover:text-base-content" href="/">
+          Overview
+        </a>
+        <a class="rounded px-3 py-2 hover:bg-base-200 hover:text-base-content" href="/portfolio">
+          Portfolio
+        </a>
+        <a class="rounded px-3 py-2 hover:bg-base-200 hover:text-base-content" href="/research">
+          Research
+        </a>
+        <Layouts.theme_toggle />
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto grid max-w-7xl gap-8 px-5 py-10 lg:grid-cols-[1.1fr_0.9fr]">
+    <section class="space-y-6">
+      <p class="text-sm font-medium uppercase text-[var(--color-neutral)]">
+        Phoenix LiveView scaffold
+      </p>
+      <h1 class="max-w-3xl text-4xl font-semibold leading-tight text-balance sm:text-5xl">
+        Live portfolio and research dashboard shell is online.
+      </h1>
+      <p class="max-w-2xl text-base leading-7 text-base-content/70">
+        Phase 0 is the application foundation: supervised Phoenix runtime, dark-first layout,
+        Tailwind v4 tokens, and committed example data under <code>priv/data</code>.
+      </p>
+    </section>
+
+    <section class="grid gap-3">
+      <div class="rounded-lg border border-[var(--color-grid)] bg-base-200 p-5">
+        <p class="text-xs uppercase text-[var(--color-neutral)]">Portfolio stream</p>
+        <p class="mt-3 text-2xl font-semibold text-[var(--color-gain)]">Pending Phase 2</p>
+      </div>
+      <div class="rounded-lg border border-[var(--color-grid)] bg-base-200 p-5">
+        <p class="text-xs uppercase text-[var(--color-neutral)]">Research surface</p>
+        <p class="mt-3 text-2xl font-semibold text-[var(--color-accent)]">Pending Phase 3</p>
+      </div>
+      <div class="rounded-lg border border-[var(--color-grid)] bg-base-200 p-5">
+        <p class="text-xs uppercase text-[var(--color-neutral)]">Runtime</p>
+        <p class="mt-3 text-2xl font-semibold">Phoenix {Application.spec(:phoenix, :vsn)}</p>
+      </div>
+    </section>
+  </main>
+</div>
