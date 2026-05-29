@@ -1,0 +1,14 @@
+[
+  {
+    "ticker": "ASML",
+    "company": "ASML Holding",
+    "theme": "Semiconductor equipment",
+    "conditions": [
+      "Advanced-node demand accelerates",
+      "Memory capex recovers",
+      "Export restrictions remain manageable"
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  }
+]

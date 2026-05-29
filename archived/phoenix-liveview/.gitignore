@@ -1,14 +1,26 @@
-# Next.js / Node build artifacts
-node_modules/
-.next/
-out/
-coverage/
-dist/
-*.tsbuildinfo
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# Elixir / Phoenix build artifacts
+_build/
+cover/
+deps/
+doc/
+.fetch
+*.beam
+*.ez
+erl_crash.dump
+tmp/
+.elixir_ls/
+.lexical/
+the_next_semis-*.tar
+
+# Phoenix compiled assets
+priv/static/assets/
+priv/static/cache_manifest.json
+
+# Mix-installed esbuild/tailwind binaries
+priv/static/esbuild
+priv/static/tailwind
+assets/node_modules/
+npm-debug.log
 
 # Env
 .env
@@ -47,6 +59,14 @@ service-account*.json
 *.token
 *.secret
 *.credentials
+
+# Fly.io
+.fly/
+fly.toml.bak
+
+# Live portfolio data — never commit real positions
+priv/data/positions.json
+priv/data/watchlist.json
 
 # Claude/Codex agent context — never push to repo
 CLAUDE.md

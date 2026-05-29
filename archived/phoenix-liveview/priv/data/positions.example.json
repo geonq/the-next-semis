@@ -1,0 +1,11 @@
+[
+  {
+    "ticker": "NVDA",
+    "company": "NVIDIA",
+    "shares": 0,
+    "average_cost": 0,
+    "currency": "USD",
+    "sector": "Semiconductors",
+    "thesis_id": "nvda-ai-infrastructure"
+  }
+]
