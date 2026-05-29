@@ -50,67 +50,66 @@ defmodule TheNextSemisWeb.OverviewLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="space-y-8">
-      <div class="rounded-xl border border-[var(--color-grid)] bg-base-200 p-6">
-        <p class="text-xs font-medium uppercase tracking-widest text-[var(--color-neutral)]">
-          Total Portfolio Value
-        </p>
-        <p class="mt-2 text-4xl font-semibold tabular-nums">{fmt_usd(@summary.total_value)}</p>
-        <div class="mt-3 flex items-center gap-4 text-sm">
-          <span class={"font-medium tabular-nums " <> sign_class(@summary.day_change_dollars)}>
-            {fmt_signed_usd(@summary.day_change_dollars)}
+    <div class="space-y-16 pt-4">
+      <div>
+        <div class="flex flex-wrap items-baseline gap-4">
+          <span class="text-5xl font-semibold tabular-nums tracking-tight">
+            {fmt_usd(@summary.total_value)}
           </span>
-          <span class={"font-medium tabular-nums " <> sign_class(@summary.day_change_percent)}>
-            {fmt_signed_pct(@summary.day_change_percent)}
-          </span>
-          <span class="text-[var(--color-neutral)]">today</span>
+          <div class="flex items-baseline gap-2 text-sm">
+            <span class={"tabular-nums font-medium " <> sign_class(@summary.day_change_dollars)}>
+              {fmt_signed_usd(@summary.day_change_dollars)}
+            </span>
+            <span class={"tabular-nums " <> sign_class(@summary.day_change_percent)}>
+              {fmt_signed_pct(@summary.day_change_percent)}
+            </span>
+            <span class="text-[var(--color-neutral)]">today</span>
+          </div>
         </div>
       </div>
 
-      <div class="grid gap-6 sm:grid-cols-2">
-        <div>
-          <p class="mb-3 text-xs font-medium uppercase tracking-widest text-[var(--color-neutral)]">
-            Top Gainers
-          </p>
-          <div class="space-y-2">
-            <div
-              :for={pos <- @top_gainers}
-              class="flex items-center justify-between rounded-lg border border-[var(--color-grid)] bg-base-200 px-4 py-3"
-            >
-              <div>
-                <span class="font-semibold">{pos["ticker"]}</span>
-                <span class="ml-2 text-sm text-base-content/50">{pos["company"]}</span>
+      <div class="border-t border-[var(--color-grid)] pt-12">
+        <div class="grid gap-12 sm:grid-cols-2">
+          <div>
+            <p class="text-xs text-[var(--color-neutral)] mb-5 tracking-wide">Top Gainers</p>
+            <div class="space-y-4">
+              <div
+                :for={pos <- @top_gainers}
+                class="flex items-center justify-between"
+              >
+                <div class="flex items-baseline gap-2">
+                  <span class="text-sm font-semibold">{pos["ticker"]}</span>
+                  <span class="text-xs text-[var(--color-neutral)]">{pos["company"]}</span>
+                </div>
+                <span class="tabular-nums text-sm font-medium text-[var(--color-gain)]">
+                  {fmt_signed_pct(pos["day_change_percent"])}
+                </span>
               </div>
-              <span class="tabular-nums font-semibold text-[var(--color-gain)]">
-                {fmt_signed_pct(pos["day_change_percent"])}
-              </span>
+              <p :if={@top_gainers == []} class="text-sm text-[var(--color-neutral)]">
+                Awaiting data…
+              </p>
             </div>
-            <p :if={@top_gainers == []} class="text-sm text-[var(--color-neutral)]">
-              Awaiting market data…
-            </p>
           </div>
-        </div>
 
-        <div>
-          <p class="mb-3 text-xs font-medium uppercase tracking-widest text-[var(--color-neutral)]">
-            Top Losers
-          </p>
-          <div class="space-y-2">
-            <div
-              :for={pos <- @top_losers}
-              class="flex items-center justify-between rounded-lg border border-[var(--color-grid)] bg-base-200 px-4 py-3"
-            >
-              <div>
-                <span class="font-semibold">{pos["ticker"]}</span>
-                <span class="ml-2 text-sm text-base-content/50">{pos["company"]}</span>
+          <div>
+            <p class="text-xs text-[var(--color-neutral)] mb-5 tracking-wide">Top Losers</p>
+            <div class="space-y-4">
+              <div
+                :for={pos <- @top_losers}
+                class="flex items-center justify-between"
+              >
+                <div class="flex items-baseline gap-2">
+                  <span class="text-sm font-semibold">{pos["ticker"]}</span>
+                  <span class="text-xs text-[var(--color-neutral)]">{pos["company"]}</span>
+                </div>
+                <span class="tabular-nums text-sm font-medium text-[var(--color-loss)]">
+                  {fmt_signed_pct(pos["day_change_percent"])}
+                </span>
               </div>
-              <span class="tabular-nums font-semibold text-[var(--color-loss)]">
-                {fmt_signed_pct(pos["day_change_percent"])}
-              </span>
+              <p :if={@top_losers == []} class="text-sm text-[var(--color-neutral)]">
+                Awaiting data…
+              </p>
             </div>
-            <p :if={@top_losers == []} class="text-sm text-[var(--color-neutral)]">
-              Awaiting market data…
-            </p>
           </div>
         </div>
       </div>

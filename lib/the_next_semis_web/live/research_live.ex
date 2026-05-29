@@ -106,75 +106,70 @@ defmodule TheNextSemisWeb.ResearchLive do
       )
 
     ~H"""
-    <div class="space-y-10">
-      <div class="space-y-3">
+    <div class="space-y-12 pt-4">
+      <div class="flex flex-wrap items-center gap-6">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-medium uppercase tracking-widest text-[var(--color-neutral)]">
-            Theme
-          </span>
+          <span class="text-xs text-[var(--color-neutral)]">Theme</span>
           <button
             :for={theme <- @themes}
             phx-click="toggle_theme"
             phx-value-theme={theme}
-            class={"rounded-full border px-3 py-1 text-xs transition-colors " <> chip_class(MapSet.member?(@active_themes, theme))}
+            class={"border px-3 py-1 text-xs rounded transition-colors " <> chip_class(MapSet.member?(@active_themes, theme))}
           >
             {theme}
           </button>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-medium uppercase tracking-widest text-[var(--color-neutral)]">
-            Conviction
-          </span>
+          <span class="text-xs text-[var(--color-neutral)]">Conviction</span>
           <button
             :for={conv <- @convictions}
             phx-click="toggle_conviction"
             phx-value-conviction={conv}
-            class={"rounded-full border px-3 py-1 text-xs transition-colors " <> chip_class(MapSet.member?(@active_convictions, conv))}
+            class={"border px-3 py-1 text-xs rounded transition-colors " <> chip_class(MapSet.member?(@active_convictions, conv))}
           >
             {conv}
           </button>
         </div>
       </div>
 
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="grid gap-3 sm:grid-cols-2">
         <a
           :for={entry <- @visible}
           href={"/research/#{entry["ticker"]}"}
-          class="group rounded-xl border border-[var(--color-grid)] bg-base-200 p-5 transition-colors hover:border-[var(--color-accent)]/50 hover:bg-base-300"
+          class="group block border border-[var(--color-grid)] rounded p-5 hover:border-[var(--color-neutral)]/50 hover:bg-base-200 transition-all"
         >
-          <div class="flex items-start justify-between gap-2">
+          <div class="flex items-start justify-between gap-4 mb-3">
             <div>
-              <p class="font-semibold">{entry["ticker"]}</p>
-              <p class="text-sm text-base-content/60">{entry["company"]}</p>
+              <p class="text-base font-semibold">{entry["ticker"]}</p>
+              <p class="text-xs text-[var(--color-neutral)] mt-0.5">{entry["company"]}</p>
             </div>
-            <div class="flex flex-col items-end gap-1">
-              <span class={"rounded-full px-2 py-0.5 text-xs font-medium " <> conviction_class(entry["conviction"])}>
-                {entry["conviction"]}
-              </span>
-              <span class={"rounded-full px-2 py-0.5 text-xs " <> status_class(entry["status"])}>
-                {entry["status"]}
-              </span>
+            <div :if={Map.has_key?(entry, "current_price")} class="text-right shrink-0">
+              <p class="text-base font-semibold tabular-nums">
+                ${entry["current_price"] |> fmt_abs()}
+              </p>
+              <p class={"text-xs tabular-nums " <> sign_class(entry["day_change_percent"])}>
+                {fmt_signed_pct(entry["day_change_percent"])}
+              </p>
             </div>
           </div>
 
-          <p class="mt-3 text-xs text-[var(--color-neutral)]">{entry["theme"]}</p>
+          <p class="text-xs text-[var(--color-neutral)] mb-3">
+            {entry["theme"]}
+            <span class="mx-1.5 opacity-30">·</span>
+            <span class={conviction_class(entry["conviction"])}>{entry["conviction"]}</span>
+            <span class="mx-1.5 opacity-30">·</span>
+            <span class={status_class(entry["status"])}>{entry["status"]}</span>
+          </p>
 
-          <ul class="mt-3 space-y-1">
+          <ul class="space-y-1">
             <li
-              :for={cond <- entry["conditions"] || []}
-              class="flex items-start gap-2 text-xs text-base-content/70"
+              :for={cond <- Enum.take(entry["conditions"] || [], 3)}
+              class="flex items-start gap-2 text-xs text-base-content/60"
             >
-              <span class="mt-0.5 text-[var(--color-neutral)]">·</span>
+              <span class="text-[var(--color-neutral)] shrink-0 mt-px">–</span>
               {cond}
             </li>
           </ul>
-
-          <div :if={Map.has_key?(entry, "current_price")} class="mt-4 flex items-center gap-3 text-sm">
-            <span class="tabular-nums font-medium">${entry["current_price"] |> fmt_abs()}</span>
-            <span class={"tabular-nums text-xs " <> sign_class(entry["day_change_percent"])}>
-              {fmt_signed_pct(entry["day_change_percent"])}
-            </span>
-          </div>
         </a>
 
         <p :if={@visible == []} class="col-span-full text-sm text-[var(--color-neutral)]">
@@ -182,11 +177,9 @@ defmodule TheNextSemisWeb.ResearchLive do
         </p>
       </div>
 
-      <section class="border-t border-[var(--color-grid)] pt-8">
-        <p class="mb-4 text-xs font-medium uppercase tracking-widest text-[var(--color-neutral)]">
-          Thesis
-        </p>
-        <div class="prose prose-invert prose-sm max-w-3xl text-base-content/80">
+      <section class="border-t border-[var(--color-grid)] pt-10">
+        <p class="mb-6 text-xs text-[var(--color-neutral)]">Thesis</p>
+        <div class="prose prose-sm max-w-3xl dark:prose-invert text-base-content/80">
           {@thesis_html}
         </div>
       </section>
@@ -198,15 +191,16 @@ defmodule TheNextSemisWeb.ResearchLive do
     do: "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
 
   defp chip_class(false),
-    do: "border-[var(--color-grid)] text-base-content/60 hover:border-[var(--color-neutral)]"
+    do:
+      "border-[var(--color-grid)] text-[var(--color-neutral)] hover:border-[var(--color-neutral)]/50"
 
-  defp conviction_class("high"), do: "bg-[var(--color-gain)]/15 text-[var(--color-gain)]"
-  defp conviction_class("medium"), do: "bg-[var(--color-accent)]/15 text-[var(--color-accent)]"
-  defp conviction_class(_), do: "bg-base-300 text-[var(--color-neutral)]"
+  defp conviction_class("high"), do: "text-[var(--color-gain)]"
+  defp conviction_class("medium"), do: "text-[var(--color-accent)]"
+  defp conviction_class(_), do: "text-[var(--color-neutral)]"
 
-  defp status_class("triggered"), do: "bg-[var(--color-gain)]/15 text-[var(--color-gain)]"
-  defp status_class("invalidated"), do: "bg-[var(--color-loss)]/15 text-[var(--color-loss)]"
-  defp status_class(_), do: "bg-base-300 text-[var(--color-neutral)]"
+  defp status_class("triggered"), do: "text-[var(--color-gain)]"
+  defp status_class("invalidated"), do: "text-[var(--color-loss)]"
+  defp status_class(_), do: "text-[var(--color-neutral)]"
 
   defp fmt_abs(nil), do: "—"
 

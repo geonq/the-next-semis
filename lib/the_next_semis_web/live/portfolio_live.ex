@@ -86,33 +86,32 @@ defmodule TheNextSemisWeb.PortfolioLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="space-y-6">
+    <div class="space-y-10 pt-4">
       <div class="flex items-end justify-between">
         <div>
-          <p class="text-xs font-medium uppercase tracking-widest text-[var(--color-neutral)]">
-            Portfolio
+          <p class="text-4xl font-semibold tabular-nums tracking-tight">
+            {fmt_usd(@summary.total_value)}
           </p>
-          <p class="mt-1 text-3xl font-semibold tabular-nums">{fmt_usd(@summary.total_value)}</p>
-        </div>
-        <div class="text-right text-sm">
-          <p class={"tabular-nums font-medium " <> sign_class(@summary.day_change_dollars)}>
-            {fmt_signed_usd(@summary.day_change_dollars)}
-          </p>
-          <p class={"tabular-nums " <> sign_class(@summary.day_change_percent)}>
-            {fmt_signed_pct(@summary.day_change_percent)} today
-          </p>
+          <div class="mt-2 flex items-center gap-3 text-sm">
+            <span class={"tabular-nums font-medium " <> sign_class(@summary.day_change_dollars)}>
+              {fmt_signed_usd(@summary.day_change_dollars)}
+            </span>
+            <span class={"tabular-nums " <> sign_class(@summary.day_change_percent)}>
+              {fmt_signed_pct(@summary.day_change_percent)} today
+            </span>
+          </div>
         </div>
       </div>
 
-      <div class="overflow-x-auto rounded-xl border border-[var(--color-grid)]">
+      <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead class="border-b border-[var(--color-grid)] bg-base-200 text-xs uppercase tracking-wider text-[var(--color-neutral)]">
+          <thead class="border-b border-[var(--color-grid)] text-xs text-[var(--color-neutral)]">
             <tr>
               <.th col="ticker" sort={@sort} label="Ticker" />
-              <th class="px-4 py-3 text-left">Company</th>
-              <th class="px-4 py-3 text-right">Shares</th>
-              <th class="px-4 py-3 text-right">Avg Cost</th>
-              <th class="px-4 py-3 text-right">Current</th>
+              <th class="px-4 py-3 text-left font-normal">Company</th>
+              <th class="px-4 py-3 text-right font-normal">Shares</th>
+              <th class="px-4 py-3 text-right font-normal">Avg Cost</th>
+              <th class="px-4 py-3 text-right font-normal">Current</th>
               <.th col="pnl_dollars" sort={@sort} label="PnL $" align="right" />
               <.th col="pnl_percent" sort={@sort} label="PnL %" align="right" />
               <.th col="day_change_percent" sort={@sort} label="Day %" align="right" />
@@ -122,28 +121,28 @@ defmodule TheNextSemisWeb.PortfolioLive do
           <tbody>
             <tr
               :for={row <- @rows}
-              class="border-b border-[var(--color-grid)] last:border-0 hover:bg-base-200/50 transition-colors"
+              class="border-b border-[var(--color-grid)] last:border-0 hover:bg-base-200 transition-colors"
             >
-              <td class="px-4 py-3 font-semibold">{row["ticker"]}</td>
-              <td class="px-4 py-3 text-base-content/60">{row["company"]}</td>
-              <td class="px-4 py-3 text-right tabular-nums">{fmt_shares(row["shares"])}</td>
-              <td class="px-4 py-3 text-right tabular-nums">{fmt_usd(row["average_cost"])}</td>
-              <td class="px-4 py-3 text-right tabular-nums">{fmt_price(row["current_price"])}</td>
-              <td class={"px-4 py-3 text-right tabular-nums font-medium " <> sign_class(row["pnl_dollars"])}>
+              <td class="px-4 py-3.5 font-semibold">{row["ticker"]}</td>
+              <td class="px-4 py-3.5 text-[var(--color-neutral)]">{row["company"]}</td>
+              <td class="px-4 py-3.5 text-right tabular-nums">{fmt_shares(row["shares"])}</td>
+              <td class="px-4 py-3.5 text-right tabular-nums">{fmt_usd(row["average_cost"])}</td>
+              <td class="px-4 py-3.5 text-right tabular-nums">{fmt_price(row["current_price"])}</td>
+              <td class={"px-4 py-3.5 text-right tabular-nums font-medium " <> sign_class(row["pnl_dollars"])}>
                 {fmt_signed_usd(row["pnl_dollars"])}
               </td>
-              <td class={"px-4 py-3 text-right tabular-nums " <> sign_class(row["pnl_percent"])}>
+              <td class={"px-4 py-3.5 text-right tabular-nums " <> sign_class(row["pnl_percent"])}>
                 {fmt_signed_pct(row["pnl_percent"])}
               </td>
-              <td class={"px-4 py-3 text-right tabular-nums " <> sign_class(row["day_change_percent"])}>
+              <td class={"px-4 py-3.5 text-right tabular-nums " <> sign_class(row["day_change_percent"])}>
                 {fmt_signed_pct(row["day_change_percent"])}
               </td>
-              <td class="px-4 py-3 text-right tabular-nums text-[var(--color-neutral)]">
+              <td class="px-4 py-3.5 text-right tabular-nums text-[var(--color-neutral)]">
                 {fmt_pct(row["allocation_percent"])}
               </td>
             </tr>
             <tr :if={@rows == []}>
-              <td colspan="9" class="px-4 py-8 text-center text-[var(--color-neutral)]">
+              <td colspan="9" class="px-4 py-12 text-center text-[var(--color-neutral)]">
                 No positions loaded — add <code>priv/data/positions.json</code>
               </td>
             </tr>
@@ -170,13 +169,15 @@ defmodule TheNextSemisWeb.PortfolioLive do
       )
 
     ~H"""
-    <th class={"px-4 py-3 text-#{@align}"}>
+    <th class={"px-4 py-3 text-#{@align} font-normal"}>
       <button
         phx-click="sort"
         phx-value-col={@col}
         class={"flex items-center gap-1 cursor-pointer hover:text-base-content " <> if @align == "right", do: "ml-auto", else: ""}
       >
-        <span class={if @active, do: "text-[var(--color-accent)]"}>{@label}</span>
+        <span class={if @active, do: "text-[var(--color-accent)] font-medium", else: ""}>
+          {@label}
+        </span>
         <span class="text-[var(--color-accent)]">{@arrow}</span>
       </button>
     </th>

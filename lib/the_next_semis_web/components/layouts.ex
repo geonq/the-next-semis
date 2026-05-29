@@ -36,17 +36,31 @@ defmodule TheNextSemisWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="sticky top-0 z-10 border-b border-[var(--color-grid)] bg-base-100/90 backdrop-blur">
-      <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-        <a href="/" class="text-sm font-semibold uppercase tracking-wide text-[var(--color-accent)]">
+    <header class="sticky top-0 z-10 border-b border-[var(--color-grid)] bg-[var(--color-bg)]">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-6 h-12">
+        <a href="/" class="text-sm font-medium text-base-content">
           The Next Semis
         </a>
-        <nav class="flex items-center gap-1 text-sm text-base-content/70">
-          <a class="rounded px-3 py-2 hover:bg-base-200 hover:text-base-content" href="/">Overview</a>
-          <a class="rounded px-3 py-2 hover:bg-base-200 hover:text-base-content" href="/portfolio">
+        <nav class="flex items-center gap-6 text-sm text-[var(--color-neutral)]">
+          <a
+            data-nav-path="/"
+            class="nav-link hover:text-base-content transition-colors"
+            href="/"
+          >
+            Overview
+          </a>
+          <a
+            data-nav-path="/portfolio"
+            class="nav-link hover:text-base-content transition-colors"
+            href="/portfolio"
+          >
             Portfolio
           </a>
-          <a class="rounded px-3 py-2 hover:bg-base-200 hover:text-base-content" href="/research">
+          <a
+            data-nav-path="/research"
+            class="nav-link hover:text-base-content transition-colors"
+            href="/research"
+          >
             Research
           </a>
           <.theme_toggle />
@@ -54,7 +68,7 @@ defmodule TheNextSemisWeb.Layouts do
       </div>
     </header>
 
-    <main class="mx-auto max-w-7xl px-5 py-8">
+    <main class="mx-auto max-w-7xl px-6 py-10">
       <%= if @inner_block != [] do %>
         {render_slot(@inner_block)}
       <% else %>
@@ -116,33 +130,14 @@ defmodule TheNextSemisWeb.Layouts do
   """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="system"
-      >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-      >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-      >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-    </div>
+    <button
+      phx-click={JS.dispatch("phx:toggle-theme")}
+      class="text-[var(--color-neutral)] hover:text-base-content transition-colors cursor-pointer"
+      aria-label="Toggle theme"
+    >
+      <.icon name="hero-sun-micro" class="size-4 dark:hidden" />
+      <.icon name="hero-moon-micro" class="size-4 hidden dark:block" />
+    </button>
     """
   end
 end

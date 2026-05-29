@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title default="The Next Semis" suffix="" phx-no-format>{assigns[:page_title]}</.live_title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
@@ -23,8 +29,23 @@
           setTheme(localStorage.getItem("phx:theme") || "dark");
         }
         window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
-        
         window.addEventListener("phx:set-theme", (e) => setTheme(e.target.dataset.phxTheme));
+        window.addEventListener("phx:toggle-theme", () => {
+          const current = localStorage.getItem("phx:theme") ||
+            (document.documentElement.getAttribute("data-theme") || "dark");
+          setTheme(current === "dark" ? "light" : "dark");
+        });
+
+        function updateActiveNav() {
+          const path = window.location.pathname;
+          document.querySelectorAll("[data-nav-path]").forEach(el => {
+            const p = el.dataset.navPath;
+            const active = p === "/" ? path === "/" : path.startsWith(p);
+            el.setAttribute("data-active", active ? "true" : "false");
+          });
+        }
+        updateActiveNav();
+        window.addEventListener("phx:page-loading-stop", updateActiveNav);
       })();
     </script>
   </head>
