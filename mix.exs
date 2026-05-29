@@ -60,6 +60,7 @@ defmodule TheNextSemis.MixProject do
       {:castore, "~> 1.0"},
       {:ecto, "~> 3.13"},
       {:req, "~> 0.5"},
+      {:earmark, "~> 1.4"},
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
@@ -78,7 +79,11 @@ defmodule TheNextSemis.MixProject do
   defp aliases do
     [
       setup: ["deps.get", "assets.setup", "assets.build"],
-      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
+      "assets.setup": [
+        "tailwind.install --if-missing",
+        "esbuild.install --if-missing",
+        "cmd --cd assets npm ci"
+      ],
       "assets.build": ["compile", "tailwind the_next_semis", "esbuild the_next_semis"],
       "assets.deploy": [
         "tailwind the_next_semis --minify",

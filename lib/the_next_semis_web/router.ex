@@ -17,7 +17,10 @@ defmodule TheNextSemisWeb.Router do
   scope "/", TheNextSemisWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", OverviewLive, :index
+    live "/portfolio", PortfolioLive, :index
+    live "/research", ResearchLive, :index
+    live "/research/:ticker", TickerLive, :show
   end
 
   # Other scopes may use custom stacks.

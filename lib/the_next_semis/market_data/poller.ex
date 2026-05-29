@@ -15,11 +15,18 @@ defmodule TheNextSemis.MarketData.Poller do
   end
 
   def last_quote(ticker) do
-    GenServer.call(__MODULE__, {:last_quote, ticker})
+    with_poller(fn -> GenServer.call(__MODULE__, {:last_quote, ticker}) end, nil)
   end
 
   def all_quotes do
-    GenServer.call(__MODULE__, :all_quotes)
+    with_poller(fn -> GenServer.call(__MODULE__, :all_quotes) end, %{})
+  end
+
+  defp with_poller(fun, default) do
+    case Process.whereis(__MODULE__) do
+      nil -> default
+      _pid -> fun.()
+    end
   end
 
   def topic, do: @topic
