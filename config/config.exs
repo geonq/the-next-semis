@@ -8,7 +8,8 @@
 import Config
 
 config :the_next_semis,
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  start_poller: true
 
 # Configure the endpoint
 config :the_next_semis, TheNextSemisWeb.Endpoint,

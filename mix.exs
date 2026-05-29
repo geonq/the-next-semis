@@ -57,6 +57,7 @@ defmodule TheNextSemis.MixProject do
        depth: 1},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
+      {:castore, "~> 1.0"},
       {:ecto, "~> 3.13"},
       {:req, "~> 0.5"},
       {:gettext, "~> 1.0"},

@@ -7,20 +7,26 @@ defmodule TheNextSemis.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      TheNextSemisWeb.Telemetry,
-      {DNSCluster, query: Application.get_env(:the_next_semis, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: TheNextSemis.PubSub},
-      # Start a worker by calling: TheNextSemis.Worker.start_link(arg)
-      # {TheNextSemis.Worker, arg},
-      # Start to serve requests, typically the last entry
-      TheNextSemisWeb.Endpoint
-    ]
+    children =
+      [
+        TheNextSemisWeb.Telemetry,
+        {DNSCluster, query: Application.get_env(:the_next_semis, :dns_cluster_query) || :ignore},
+        {Phoenix.PubSub, name: TheNextSemis.PubSub},
+        poller_child(),
+        TheNextSemisWeb.Endpoint
+      ]
+      |> Enum.reject(&is_nil/1)
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: TheNextSemis.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp poller_child do
+    if Application.get_env(:the_next_semis, :start_poller, true) do
+      TheNextSemis.MarketData.Poller
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration
