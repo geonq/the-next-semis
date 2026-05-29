@@ -86,6 +86,7 @@ defmodule TheNextSemis.MixProject do
       ],
       "assets.build": ["compile", "tailwind the_next_semis", "esbuild the_next_semis"],
       "assets.deploy": [
+        "compile",
         "tailwind the_next_semis --minify",
         "esbuild the_next_semis --minify",
         "phx.digest"

@@ -15,6 +15,10 @@ defmodule TheNextSemisWeb.Router do
   end
 
   scope "/", TheNextSemisWeb do
+    get "/health", PageController, :health
+  end
+
+  scope "/", TheNextSemisWeb do
     pipe_through :browser
 
     live "/", OverviewLive, :index
