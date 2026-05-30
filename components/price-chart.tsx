@@ -15,7 +15,7 @@ function readThemeColors() {
   };
 }
 
-export function PriceChart({ history, company }: { history: Candle[]; ticker: string; company: string }) {
+export function PriceChart({ history, ticker, company }: { history: Candle[]; ticker: string; company: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
@@ -109,7 +109,8 @@ export function PriceChart({ history, company }: { history: Candle[]; ticker: st
   useEffect(() => {
     if (!company) return;
     let cancelled = false;
-    fetch(`/api/brand-color?company=${encodeURIComponent(company)}`)
+    const params = new URLSearchParams({ ticker, company });
+    fetch(`/api/brand-color?${params}`)
       .then((r) => r.json())
       .then(({ color }: { color: string | null }) => {
         if (cancelled) return;
@@ -120,7 +121,7 @@ export function PriceChart({ history, company }: { history: Candle[]; ticker: st
     return () => {
       cancelled = true;
     };
-  }, [company]);
+  }, [company, ticker]);
 
   return (
     <div className="chart-section">

@@ -5,6 +5,9 @@ export const runtime = "nodejs";
 
 const browserUa = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 const genericColors = new Set(["#fff", "#ffffff", "#000", "#000000"]);
+const domainByTicker: Record<string, string> = {
+  PURR: "hypestrat.xyz"
+};
 
 function cleanHex(value: string | undefined): string | null {
   if (!value) return null;
@@ -21,13 +24,17 @@ function themeColor(html: string): string | null {
   return cleanHex(match?.[1]);
 }
 
-async function resolveDomain(company: string): Promise<string | null> {
+async function resolveDomain(company: string, ticker?: string): Promise<string | null> {
+  const tickerDomain = ticker ? domainByTicker[ticker.toUpperCase()] : undefined;
+  if (tickerDomain) return tickerDomain;
+
   const queries = Array.from(
     new Set([
+      ticker,
       company,
       company.replace(/\b(Holding|Holdings|N\.V\.|Inc\.|Corp\.|Corporation|Ltd\.?|PLC|S\.A\.)\b/gi, "").trim(),
       company.split(/\s+/)[0]
-    ].filter(Boolean))
+    ].filter((query): query is string => Boolean(query)))
   );
 
   for (const query of queries) {
@@ -63,20 +70,22 @@ async function fetchThemeColor(domain: string): Promise<string | null> {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const company = searchParams.get("company")?.trim();
+  const ticker = searchParams.get("ticker")?.trim().toUpperCase();
   if (!company) return NextResponse.json({ color: null });
 
   try {
-    const cached = await getBrandColor(company);
+    const cacheKey = ticker ? `${ticker}:${company}` : company;
+    const cached = await getBrandColor(cacheKey);
     if (cached !== undefined) return NextResponse.json({ color: cached });
 
-    const domain = await resolveDomain(company);
+    const domain = await resolveDomain(company, ticker);
     if (!domain) {
-      await setBrandColor(company, null);
+      await setBrandColor(cacheKey, null);
       return NextResponse.json({ color: null });
     }
 
     const color = await fetchThemeColor(domain);
-    await setBrandColor(company, color);
+    await setBrandColor(cacheKey, color);
     return NextResponse.json({ color });
   } catch {
     return NextResponse.json({ color: null });

@@ -82,8 +82,6 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
         </div>
       </section>
 
-      <NewsPanel ticker={ticker} />
-
       <ReadingList
         items={savedItems.filter((item) => item.tickers.includes(ticker))}
         allItems={savedItems}
@@ -91,6 +89,8 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
         isAdmin={isAdmin}
         themes={themes(entries)}
       />
+
+      <NewsPanel ticker={ticker} />
     </div>
   );
 }
