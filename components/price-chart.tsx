@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { AreaSeries, createChart, type AreaData, type ISeriesApi, type Time } from "lightweight-charts";
 import type { Candle } from "@/lib/types";
+import { useBrandColor } from "./use-brand-color";
 
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement);
@@ -20,6 +21,7 @@ export function PriceChart({ history, ticker, company }: { history: Candle[]; ti
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
   const brandColorRef = useRef<string | null>(null);
+  const brandColor = useBrandColor(ticker, company);
 
   function applySeriesColor(color: string) {
     seriesRef.current?.applyOptions({
@@ -107,21 +109,9 @@ export function PriceChart({ history, ticker, company }: { history: Candle[]; ti
   }, [history]);
 
   useEffect(() => {
-    if (!company) return;
-    let cancelled = false;
-    const params = new URLSearchParams({ ticker, company });
-    fetch(`/api/brand-color?${params}`)
-      .then((r) => r.json())
-      .then(({ color }: { color: string | null }) => {
-        if (cancelled) return;
-        brandColorRef.current = color;
-        applySeriesColor(color ?? readThemeColors().accent);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [company, ticker]);
+    brandColorRef.current = brandColor;
+    applySeriesColor(brandColor ?? readThemeColors().accent);
+  }, [brandColor]);
 
   return (
     <div className="chart-section">

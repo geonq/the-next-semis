@@ -1,12 +1,73 @@
 [
   {
-    "ticker": "ASML",
-    "company": "ASML Holding",
-    "theme": "Semiconductor equipment",
+    "ticker": "PURR",
+    "company": "Hyperliquid Strategies Inc",
+    "theme": "Decentralized Exchange",
     "conditions": [
-      "Advanced-node demand accelerates",
-      "Memory capex recovers",
-      "Export restrictions remain manageable"
+      "- hello",
+      "- this a test fr",
+      "- hyperchain go brr"
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "AMD",
+    "company": "Advanced Micro Devices, Inc.",
+    "theme": "Semiconductors & Such",
+    "conditions": [
+      "- indeed"
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "RHM.DE",
+    "company": "RHEINMETALL AG                I",
+    "theme": "Defense",
+    "conditions": [
+      "ww3 breaks out",
+      "idk some else"
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "LMT",
+    "company": "Lockheed Martin Corporation",
+    "theme": "Defense",
+    "conditions": [
+      "its lockheed..."
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "PLTR",
+    "company": "Palantir Technologies Inc.",
+    "theme": "Defense",
+    "conditions": [
+      "all hail palantir"
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "NVDA",
+    "company": "NVIDIA Corporation",
+    "theme": "Semiconductors & Such",
+    "conditions": [
+      "jensen huang"
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "RTX",
+    "company": "RTX Corporation",
+    "theme": "Defense",
+    "conditions": [
+      "raytheon"
     ],
     "conviction": "draft",
     "status": "watching"

@@ -6,7 +6,17 @@ export const runtime = "nodejs";
 
 const browserUa = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 const genericColors = new Set(["#fff", "#ffffff", "#000", "#000000"]);
+const genericCssColors = new Set(["#18bc9c", "#2f96b4", "#51a351", "#bd362f", "#f89406", "#ff4136"]);
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const companySuffixPattern = /\b(Holding|Holdings|N\.V\.|Inc\.|Corp\.|Corporation|Ltd\.?|PLC|S\.A\.|AG|I)\b/gi;
+const cacheHeaders = {
+  "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000"
+};
+
+type DomainSuggestion = {
+  domain?: string;
+  name?: string;
+};
 
 function cleanHex(value: string | undefined): string | null {
   if (!value) return null;
@@ -36,6 +46,7 @@ function rgbFromHex(hex: string): [number, number, number] {
 }
 
 function colorSignal(hex: string): number {
+  if (genericCssColors.has(hex.toLowerCase())) return 0;
   const [r, g, b] = rgbFromHex(hex);
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
@@ -174,25 +185,103 @@ function extractPngAccent(buffer: Buffer): string | null {
 }
 
 async function resolveDomain(company: string, ticker?: string): Promise<string | null> {
+  const normalizedTicker = normalizeToken(ticker ?? "");
+  const companyTokens = company
+    .replace(companySuffixPattern, "")
+    .split(/\s+/)
+    .map(normalizeToken)
+    .filter((token) => token.length >= 3);
   const queries = Array.from(
     new Set([
-      ticker,
       company,
-      company.replace(/\b(Holding|Holdings|N\.V\.|Inc\.|Corp\.|Corporation|Ltd\.?|PLC|S\.A\.)\b/gi, "").trim(),
-      company.split(/\s+/)[0]
+      company.replace(companySuffixPattern, "").trim(),
+      company.split(/\s+/)[0],
+      ticker
     ].filter((query): query is string => Boolean(query)))
   );
 
+  let best: { domain: string; name: string; score: number } | null = null;
   for (const query of queries) {
     const response = await fetch(
       `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(query)}`,
       { signal: AbortSignal.timeout(8000), headers: { "User-Agent": browserUa } }
     );
     if (!response.ok) continue;
-    const suggestions = (await response.json()) as { domain?: string }[];
-    if (suggestions[0]?.domain) return suggestions[0].domain;
+    const suggestions = (await response.json()) as DomainSuggestion[];
+    for (const suggestion of suggestions.slice(0, 5)) {
+      if (!suggestion.domain) continue;
+      const score = scoreDomainSuggestion(suggestion, normalizedTicker, companyTokens);
+      if (score > 0 && (!best || score > best.score)) best = { domain: suggestion.domain, name: suggestion.name ?? "", score };
+    }
+  }
+
+  const generatedDomain = await verifyGeneratedDomain(companyTokens);
+  if (generatedDomain && best && companyTokens.some((token) => !normalizeToken(best.domain + best.name).includes(token))) {
+    return generatedDomain;
+  }
+  return best?.domain ?? generatedDomain;
+}
+
+function normalizeToken(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function scoreDomainSuggestion(suggestion: DomainSuggestion, ticker: string, companyTokens: string[]): number {
+  const domainRoot = normalizeToken(suggestion.domain?.split(".")[0] ?? "");
+  const domain = normalizeToken(suggestion.domain ?? "");
+  const name = normalizeToken(suggestion.name ?? "");
+  let score = 0;
+
+  if (ticker && domainRoot === ticker) score += 8;
+  if (ticker && name === ticker) score += 4;
+  if (ticker && name.includes(ticker)) score += 4;
+
+  for (const token of companyTokens) {
+    if (domainRoot === token) score += 20;
+    else if (domain.includes(token)) score += 12;
+    if (name.includes(token)) score += 14;
+  }
+
+  if (companyTokens.length > 0 && !companyTokens.some((token) => domain.includes(token) || name.includes(token))) {
+    score -= 3;
+  }
+  return score;
+}
+
+async function verifyGeneratedDomain(companyTokens: string[]): Promise<string | null> {
+  const [first, second] = companyTokens;
+  if (!first || !second) return null;
+
+  const roots = new Set([
+    `${first}${second}`,
+    `${first.slice(0, 4)}${second.slice(0, 5)}`,
+    `${first.slice(0, 3)}${second.slice(0, 5)}`
+  ]);
+
+  for (const root of roots) {
+    for (const tld of ["xyz", "com", "io"]) {
+      const domain = `${root}.${tld}`;
+      if (await domainMatchesCompany(domain, companyTokens)) return domain;
+    }
   }
   return null;
+}
+
+async function domainMatchesCompany(domain: string, companyTokens: string[]): Promise<boolean> {
+  try {
+    const response = await fetch(`https://${domain}`, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(4000),
+      headers: { "User-Agent": browserUa }
+    });
+    if (!response.ok) return false;
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/html")) return false;
+    const text = normalizeToken((await response.text()).slice(0, 20000));
+    return companyTokens.every((token) => text.includes(token));
+  } catch {
+    return false;
+  }
 }
 
 async function fetchThemeColor(domain: string): Promise<string | null> {
@@ -215,15 +304,19 @@ async function fetchThemeColor(domain: string): Promise<string | null> {
 
 function stylesheetUrls(html: string, baseUrl: string): string[] {
   const urls: string[] = [];
-  const matches = html.matchAll(/<link[^>]+rel=["'][^"']*stylesheet[^"']*["'][^>]+href=["']([^"']+)["']/gi);
-  for (const match of matches) {
+  const links = html.matchAll(/<link\b[^>]*>/gi);
+  for (const link of links) {
+    const tag = link[0];
+    if (!/rel=["'][^"']*stylesheet[^"']*["']/i.test(tag)) continue;
+    const href = tag.match(/\bhref=["']([^"']+)["']/i)?.[1];
+    if (!href) continue;
     try {
-      urls.push(new URL(match[1], baseUrl).toString());
+      urls.push(new URL(href, baseUrl).toString());
     } catch {
       // Ignore malformed stylesheet references.
     }
   }
-  return urls.slice(0, 4);
+  return urls.slice(0, 8);
 }
 
 async function fetchWebsiteAccent(domain: string): Promise<string | null> {
@@ -239,7 +332,9 @@ async function fetchWebsiteAccent(domain: string): Promise<string | null> {
       const html = await response.text();
       const inlineAccent = extractTextAccent(html);
       if (inlineAccent) return inlineAccent;
+      if (isExplicitMonochromeBrandPage(html)) return null;
 
+      let stylesheetText = "";
       for (const stylesheetUrl of stylesheetUrls(html, response.url || url)) {
         try {
           const stylesheet = await fetch(stylesheetUrl, {
@@ -248,12 +343,13 @@ async function fetchWebsiteAccent(domain: string): Promise<string | null> {
             headers: { "User-Agent": browserUa, Accept: "text/css" }
           });
           if (!stylesheet.ok) continue;
-          const cssAccent = extractTextAccent(await stylesheet.text());
-          if (cssAccent) return cssAccent;
+          stylesheetText += "\n" + (await stylesheet.text());
         } catch {
           // Try the next stylesheet.
         }
       }
+      const cssAccent = extractTextAccent(stylesheetText);
+      if (cssAccent) return cssAccent;
     } catch {
       // Try the next host form.
     }
@@ -261,43 +357,61 @@ async function fetchWebsiteAccent(domain: string): Promise<string | null> {
   return null;
 }
 
+function isExplicitMonochromeBrandPage(html: string): boolean {
+  const lower = html.toLowerCase();
+  return lower.includes("logo on black") || lower.includes("logo on white");
+}
+
 async function fetchLogoAccent(domain: string): Promise<string | null> {
-  try {
-    const response = await fetch(`https://logos.hunter.io/${domain}?format=png&size=128`, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(8000),
-      headers: { "User-Agent": browserUa, Accept: "image/png" }
-    });
-    if (!response.ok) return null;
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("image/png")) return null;
-    return extractPngAccent(Buffer.from(await response.arrayBuffer()));
-  } catch {
-    return null;
+  const logoUrls = [
+    `https://logos.hunter.io/${domain}?format=png&size=128`,
+    `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
+  ];
+
+  for (const url of logoUrls) {
+    try {
+      const response = await fetch(url, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": browserUa, Accept: "image/png" }
+      });
+      if (!response.ok) continue;
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.includes("image/png")) continue;
+      const color = extractPngAccent(Buffer.from(await response.arrayBuffer()));
+      if (color) return color;
+    } catch {
+      // Try the next logo source.
+    }
   }
+  return null;
+}
+
+function colorResponse(color: string | null) {
+  return NextResponse.json({ color }, { headers: cacheHeaders });
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const company = searchParams.get("company")?.trim();
   const ticker = searchParams.get("ticker")?.trim().toUpperCase();
-  if (!company) return NextResponse.json({ color: null });
+  if (!company) return colorResponse(null);
 
   try {
     const cacheKey = ticker ? `${ticker}:${company}` : company;
     const cached = await getBrandColor(cacheKey);
-    if (cached !== undefined) return NextResponse.json({ color: cached });
+    if (cached !== undefined) return colorResponse(cached);
 
     const domain = await resolveDomain(company, ticker);
     if (!domain) {
       await setBrandColor(cacheKey, null);
-      return NextResponse.json({ color: null });
+      return colorResponse(null);
     }
 
-    const color = (await fetchThemeColor(domain)) ?? (await fetchWebsiteAccent(domain)) ?? (await fetchLogoAccent(domain));
+    const color = (await fetchLogoAccent(domain)) ?? (await fetchWebsiteAccent(domain)) ?? (await fetchThemeColor(domain));
     await setBrandColor(cacheKey, color);
-    return NextResponse.json({ color });
+    return colorResponse(color);
   } catch {
-    return NextResponse.json({ color: null });
+    return colorResponse(null);
   }
 }

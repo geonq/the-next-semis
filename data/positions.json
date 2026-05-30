@@ -7,5 +7,13 @@
     "currency": "USD",
     "sector": "Semiconductors",
     "thesis_id": "nvda-ai-infrastructure"
+  },
+  {
+    "ticker": "PURR",
+    "company": "Hyperliquid Strategies Inc",
+    "shares": 1,
+    "average_cost": 5,
+    "currency": "USD",
+    "sector": "Financials"
   }
 ]

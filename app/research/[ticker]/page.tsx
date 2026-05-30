@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { BrandTicker } from "@/components/brand-ticker";
 import { NewsPanel } from "@/components/news-panel";
 import { PriceChart } from "@/components/price-chart";
 import { ReadingList } from "@/components/reading-list";
@@ -35,7 +36,7 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
         <div className="ticker-hero">
           <div>
             <h1 className="ticker-title">
-              {ticker}
+              <BrandTicker ticker={ticker} company={entry.company} className="ticker-title-symbol" />
               <span className="ticker-company">{entry.company}</span>
             </h1>
             <p className="subtle">{capitalizeFirst(entry.theme)}</p>

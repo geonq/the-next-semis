@@ -403,6 +403,7 @@ ol {
 }
 
 .research-grid {
+  align-items: stretch;
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -411,7 +412,10 @@ ol {
 .research-card {
   border: 1px solid var(--color-grid);
   border-radius: 4px;
-  display: block;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 188px;
   padding: 24px 20px;
   transition:
     background 150ms ease,
@@ -429,6 +433,15 @@ ol {
   gap: 16px;
   justify-content: space-between;
   margin-bottom: 16px;
+}
+
+.brand-ticker {
+  color: var(--brand-color, var(--color-fg));
+  transition: color 150ms ease;
+}
+
+.card-ticker {
+  display: block;
 }
 
 .card-price {
@@ -450,6 +463,7 @@ ol {
 .conditions {
   color: color-mix(in srgb, var(--color-fg) 60%, transparent);
   display: grid;
+  flex: 1;
   font-size: 12px;
   gap: 8px;
   list-style: none;
@@ -504,16 +518,23 @@ ol {
 }
 
 .ticker-title {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
   font-size: 24px;
+  gap: 8px;
   font-weight: 650;
   margin: 0;
+}
+
+.ticker-title-symbol {
+  font: inherit;
 }
 
 .ticker-company {
   color: var(--color-neutral);
   font-size: 16px;
   font-weight: 400;
-  margin-left: 8px;
 }
 
 .price-block {
@@ -857,6 +878,7 @@ ol {
 }
 
 .research-card-wrap {
+  display: flex;
   position: relative;
 }
 

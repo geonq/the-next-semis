@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { capitalizeFirst, fmtAbs, fmtSignedPct, signClass } from "@/lib/format";
 import { enrichWatchlist } from "@/lib/research";
 import type { QuotesByTicker, SavedItem, WatchlistEntry } from "@/lib/types";
+import { BrandTicker } from "./brand-ticker";
 import { ReadingList } from "./reading-list";
 import { SegmentedTabs } from "./segmented-tabs";
 import { TickerAutocomplete } from "./ticker-autocomplete";
@@ -70,7 +71,7 @@ export function ResearchClient({
             <Link className="research-card" href={`/research/${entry.ticker}`}>
               <div className="card-top">
                 <div>
-                  <p className="ticker">{entry.ticker}</p>
+                  <BrandTicker ticker={entry.ticker} company={entry.company} className="ticker card-ticker" />
                   <p className="subtle">{entry.company}</p>
                 </div>
                 {entry.current_price != null ? (
