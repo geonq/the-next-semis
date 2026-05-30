@@ -1,14 +1,53 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { signSession } from "@/lib/auth";
+import { checkLoginRateLimit, clearLoginFailures, registerLoginFailure } from "@/lib/rate-limit";
+
+export const runtime = "nodejs";
+
+// Constant-time string compare so login can't be probed character-by-character
+// via response timing. Length mismatch returns early (length is not secret here).
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
+
+function clientIp(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  return forwarded?.split(",")[0]?.trim() || "unknown";
+}
 
 export async function POST(request: Request) {
+  const ip = clientIp(request);
+
+  const limit = await checkLoginRateLimit(ip);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many failed attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } }
+    );
+  }
+
   const { username, password } = await request.json();
   const expectedUser = process.env.ADMIN_USERNAME;
   const expectedPass = process.env.ADMIN_PASSWORD;
 
-  if (!expectedUser || !expectedPass || username !== expectedUser || password !== expectedPass) {
+  const ok =
+    typeof username === "string" &&
+    typeof password === "string" &&
+    Boolean(expectedUser) &&
+    Boolean(expectedPass) &&
+    safeEqual(username, expectedUser!) &&
+    safeEqual(password, expectedPass!);
+
+  if (!ok) {
+    await registerLoginFailure(ip);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  await clearLoginFailures(ip);
 
   const token = await signSession();
   const response = NextResponse.json({ ok: true });

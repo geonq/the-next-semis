@@ -25,7 +25,8 @@ export default function LoginPage() {
       router.push("/portfolio");
       router.refresh();
     } else {
-      setError("Invalid credentials.");
+      const data = await res.json().catch(() => ({}));
+      setError(res.status === 429 ? (data.error ?? "Too many attempts. Try again later.") : "Invalid credentials.");
       setLoading(false);
     }
   }

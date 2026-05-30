@@ -20,7 +20,7 @@ function parseSavedItems(data: unknown): SavedItem[] {
   return parsed.success ? parsed.data : [];
 }
 
-function getRedis() {
+export function getRedis() {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
@@ -114,16 +114,19 @@ export async function setThesis(markdown: string): Promise<void> {
   await fs.writeFile(path.join(process.cwd(), "data", "thesis.md"), markdown);
 }
 
+// `__none__` sentinel lets us cache a "no brand color / monochrome" verdict.
+// Without it, null results (e.g. Palantir) miss the cache forever and re-run the
+// full external-fetch pipeline on every page load.
 export async function getBrandColor(company: string): Promise<string | null | undefined> {
   const redis = getRedis();
   if (!redis) return undefined;
-  const value = await redis.get<string>(`brandcolor:v11:${company.toLowerCase()}`);
-  if (value === null) return undefined;
-  return value;
+  const value = await redis.get<string>(`brandcolor:v12:${company.toLowerCase()}`);
+  if (value === null) return undefined; // Redis miss
+  return value === "__none__" ? null : value;
 }
 
 export async function setBrandColor(company: string, color: string | null): Promise<void> {
   const redis = getRedis();
-  if (!redis || !color) return;
-  await redis.set(`brandcolor:v11:${company.toLowerCase()}`, color);
+  if (!redis) return;
+  await redis.set(`brandcolor:v12:${company.toLowerCase()}`, color ?? "__none__");
 }

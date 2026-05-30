@@ -4,13 +4,34 @@ import { getBrandColor, setBrandColor } from "@/lib/kv";
 
 export const runtime = "nodejs";
 
+// Curated brand-color verdicts for companies the automated pipeline gets wrong.
+// Keys are lowercase substrings of the company name — first match wins.
+//   string  -> authoritative brand color (SPA/no-signal sites we can't extract)
+//   null    -> monochrome brand (white/black logo); use the theme accent, never guess
+// `hit: false` means "not curated, run the extraction pipeline".
+const BRAND_OVERRIDES: Record<string, string | null> = {
+  hyperliquid: "#96fbd4", // turquoise; SPA with no extractable signal
+  palantir: null // white/black wordmark — favicon pixel guessing wrongly returns red
+};
+
+function lookupOverride(company: string): { hit: boolean; color: string | null } {
+  const lower = company.toLowerCase();
+  for (const [key, color] of Object.entries(BRAND_OVERRIDES)) {
+    if (lower.includes(key)) return { hit: true, color };
+  }
+  return { hit: false, color: null };
+}
+
 const browserUa = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 const genericColors = new Set(["#fff", "#ffffff", "#000", "#000000"]);
 const genericCssColors = new Set(["#18bc9c", "#2f96b4", "#51a351", "#bd362f", "#f89406", "#ff4136"]);
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const companySuffixPattern = /\b(Holding|Holdings|N\.V\.|Inc\.|Corp\.|Corporation|Ltd\.?|PLC|S\.A\.|AG|I)\b/gi;
+// Never let the browser serve a stale color. The server is already fast — Redis
+// caches the verdict in production and curated/override paths return instantly —
+// so there's no need for an HTTP cache that can pin a wrong value for a day.
 const cacheHeaders = {
-  "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000"
+  "Cache-Control": "no-store"
 };
 
 type DomainSuggestion = {
@@ -215,11 +236,7 @@ async function resolveDomain(company: string, ticker?: string): Promise<string |
     }
   }
 
-  const generatedDomain = await verifyGeneratedDomain(companyTokens);
-  if (generatedDomain && best && companyTokens.some((token) => !normalizeToken(best.domain + best.name).includes(token))) {
-    return generatedDomain;
-  }
-  return best?.domain ?? generatedDomain;
+  return best?.domain ?? null;
 }
 
 function normalizeToken(value: string): string {
@@ -248,43 +265,7 @@ function scoreDomainSuggestion(suggestion: DomainSuggestion, ticker: string, com
   return score;
 }
 
-async function verifyGeneratedDomain(companyTokens: string[]): Promise<string | null> {
-  const [first, second] = companyTokens;
-  if (!first || !second) return null;
-
-  const roots = new Set([
-    `${first}${second}`,
-    `${first.slice(0, 4)}${second.slice(0, 5)}`,
-    `${first.slice(0, 3)}${second.slice(0, 5)}`
-  ]);
-
-  for (const root of roots) {
-    for (const tld of ["xyz", "com", "io"]) {
-      const domain = `${root}.${tld}`;
-      if (await domainMatchesCompany(domain, companyTokens)) return domain;
-    }
-  }
-  return null;
-}
-
-async function domainMatchesCompany(domain: string, companyTokens: string[]): Promise<boolean> {
-  try {
-    const response = await fetch(`https://${domain}`, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(4000),
-      headers: { "User-Agent": browserUa }
-    });
-    if (!response.ok) return false;
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("text/html")) return false;
-    const text = normalizeToken((await response.text()).slice(0, 20000));
-    return companyTokens.every((token) => text.includes(token));
-  } catch {
-    return false;
-  }
-}
-
-async function fetchThemeColor(domain: string): Promise<string | null> {
+async function fetchHomepage(domain: string): Promise<{ html: string; baseUrl: string } | null> {
   for (const url of [`https://www.${domain}`, `https://${domain}`]) {
     try {
       const response = await fetch(url, {
@@ -293,8 +274,7 @@ async function fetchThemeColor(domain: string): Promise<string | null> {
         headers: { "User-Agent": browserUa }
       });
       if (!response.ok) continue;
-      const color = themeColor(await response.text());
-      if (color) return color;
+      return { html: await response.text(), baseUrl: response.url || url };
     } catch {
       // Try the next host form.
     }
@@ -319,42 +299,22 @@ function stylesheetUrls(html: string, baseUrl: string): string[] {
   return urls.slice(0, 8);
 }
 
-async function fetchWebsiteAccent(domain: string): Promise<string | null> {
-  for (const url of [`https://www.${domain}`, `https://${domain}`]) {
+async function fetchCssAccent(html: string, baseUrl: string): Promise<string | null> {
+  let stylesheetText = "";
+  for (const stylesheetUrl of stylesheetUrls(html, baseUrl)) {
     try {
-      const response = await fetch(url, {
+      const stylesheet = await fetch(stylesheetUrl, {
         redirect: "follow",
-        signal: AbortSignal.timeout(8000),
-        headers: { "User-Agent": browserUa }
+        signal: AbortSignal.timeout(5000),
+        headers: { "User-Agent": browserUa, Accept: "text/css" }
       });
-      if (!response.ok) continue;
-
-      const html = await response.text();
-      const inlineAccent = extractTextAccent(html);
-      if (inlineAccent) return inlineAccent;
-      if (isExplicitMonochromeBrandPage(html)) return null;
-
-      let stylesheetText = "";
-      for (const stylesheetUrl of stylesheetUrls(html, response.url || url)) {
-        try {
-          const stylesheet = await fetch(stylesheetUrl, {
-            redirect: "follow",
-            signal: AbortSignal.timeout(5000),
-            headers: { "User-Agent": browserUa, Accept: "text/css" }
-          });
-          if (!stylesheet.ok) continue;
-          stylesheetText += "\n" + (await stylesheet.text());
-        } catch {
-          // Try the next stylesheet.
-        }
-      }
-      const cssAccent = extractTextAccent(stylesheetText);
-      if (cssAccent) return cssAccent;
+      if (!stylesheet.ok) continue;
+      stylesheetText += "\n" + (await stylesheet.text());
     } catch {
-      // Try the next host form.
+      // Try the next stylesheet.
     }
   }
-  return null;
+  return extractTextAccent(stylesheetText);
 }
 
 function isExplicitMonochromeBrandPage(html: string): boolean {
@@ -398,20 +358,36 @@ export async function GET(request: Request) {
   if (!company) return colorResponse(null);
 
   try {
+    const override = lookupOverride(company);
+    if (override.hit) return colorResponse(override.color);
+
     const cacheKey = ticker ? `${ticker}:${company}` : company;
     const cached = await getBrandColor(cacheKey);
     if (cached !== undefined) return colorResponse(cached);
 
-    const domain = await resolveDomain(company, ticker);
-    if (!domain) {
-      await setBrandColor(cacheKey, null);
-      return colorResponse(null);
-    }
-
-    const color = (await fetchLogoAccent(domain)) ?? (await fetchWebsiteAccent(domain)) ?? (await fetchThemeColor(domain));
+    const color = await resolveColor(company, ticker);
     await setBrandColor(cacheKey, color);
     return colorResponse(color);
   } catch {
     return colorResponse(null);
   }
+}
+
+async function resolveColor(company: string, ticker?: string): Promise<string | null> {
+  const domain = await resolveDomain(company, ticker);
+  if (!domain) return null;
+
+  // Read the company's own page first: declared colors (inline styles, theme-color,
+  // stylesheet accents) beat guessing pixels off a favicon. A monochrome brand page
+  // (white/black wordmark) is a hard stop — never fall through to pixel-guessing,
+  // which is what wrongly returned red for Palantir.
+  const page = await fetchHomepage(domain);
+  if (page) {
+    if (isExplicitMonochromeBrandPage(page.html)) return null;
+    const declared = extractTextAccent(page.html) ?? themeColor(page.html) ?? (await fetchCssAccent(page.html, page.baseUrl));
+    if (declared) return declared;
+  }
+
+  // Last resort for sites that declare no usable color in markup or CSS.
+  return fetchLogoAccent(domain);
 }

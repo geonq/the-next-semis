@@ -26,8 +26,8 @@ export function PriceChart({ history, ticker, company }: { history: Candle[]; ti
   function applySeriesColor(color: string) {
     seriesRef.current?.applyOptions({
       lineColor: color,
-      topColor: color + "22",
-      bottomColor: "transparent"
+      topColor: color + "59",
+      bottomColor: color + "0a"
     });
   }
 
@@ -59,8 +59,8 @@ export function PriceChart({ history, ticker, company }: { history: Candle[]; ti
 
     const series = chart.addSeries(AreaSeries, {
       lineColor: colors.accent,
-      topColor: colors.accent + "22",
-      bottomColor: "transparent",
+      topColor: colors.accent + "59",
+      bottomColor: colors.accent + "0a",
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true

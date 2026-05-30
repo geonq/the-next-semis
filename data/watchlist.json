@@ -66,9 +66,7 @@
     "ticker": "RTX",
     "company": "RTX Corporation",
     "theme": "Defense",
-    "conditions": [
-      "raytheon"
-    ],
+    "conditions": [],
     "conviction": "draft",
     "status": "watching"
   }
