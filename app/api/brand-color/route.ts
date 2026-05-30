@@ -5,9 +5,6 @@ export const runtime = "nodejs";
 
 const browserUa = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 const genericColors = new Set(["#fff", "#ffffff", "#000", "#000000"]);
-const domainByTicker: Record<string, string> = {
-  PURR: "hypestrat.xyz"
-};
 
 function cleanHex(value: string | undefined): string | null {
   if (!value) return null;
@@ -25,9 +22,6 @@ function themeColor(html: string): string | null {
 }
 
 async function resolveDomain(company: string, ticker?: string): Promise<string | null> {
-  const tickerDomain = ticker ? domainByTicker[ticker.toUpperCase()] : undefined;
-  if (tickerDomain) return tickerDomain;
-
   const queries = Array.from(
     new Set([
       ticker,

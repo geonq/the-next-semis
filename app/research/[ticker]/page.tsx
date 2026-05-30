@@ -22,7 +22,7 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
   const entry = entries.find((candidate) => candidate.ticker === ticker);
   if (!entry) notFound();
 
-  const [quotes, history] = await Promise.all([fetchQuotes([ticker]), fetchHistory(ticker, "max")]);
+  const [quotes, history] = await Promise.all([fetchQuotes([ticker]), fetchHistory(ticker, "10y")]);
   const quote = quotes[ticker];
 
   return (
