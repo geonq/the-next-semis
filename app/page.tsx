@@ -1,11 +1,12 @@
 import { OverviewClient } from "@/components/overview-client";
-import { loadPositions, loadWatchlist, trackedTickers } from "@/lib/data";
+import { trackedTickers } from "@/lib/data";
+import { getPositions, getWatchlist } from "@/lib/kv";
 import { fetchQuotes } from "@/lib/market";
 
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
-  const [positions, watchlist] = await Promise.all([loadPositions(), loadWatchlist()]);
+  const [positions, watchlist] = await Promise.all([getPositions(), getWatchlist()]);
   const tickers = trackedTickers(positions, watchlist);
   const quotes = await fetchQuotes(tickers);
 

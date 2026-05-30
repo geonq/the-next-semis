@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { NewsPanel } from "@/components/news-panel";
 import { PriceChart } from "@/components/price-chart";
 import { fmtAbs, fmtSignedPct, fmtSignedUsd, signClass } from "@/lib/format";
-import { loadWatchlist } from "@/lib/data";
+import { getWatchlist } from "@/lib/kv";
 import { fetchHistory, fetchQuotes } from "@/lib/market";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +11,11 @@ export const dynamic = "force-dynamic";
 export default async function TickerPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = await params;
   const ticker = rawTicker.toUpperCase();
-  const entries = await loadWatchlist();
+  const entries = await getWatchlist();
   const entry = entries.find((candidate) => candidate.ticker === ticker);
   if (!entry) notFound();
 
-  const [quotes, history] = await Promise.all([fetchQuotes([ticker]), fetchHistory(ticker, "1mo")]);
+  const [quotes, history] = await Promise.all([fetchQuotes([ticker]), fetchHistory(ticker, "5y")]);
   const quote = quotes[ticker];
 
   return (
@@ -49,7 +50,9 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
         </div>
       </section>
 
-      <PriceChart history={history} />
+      <PriceChart history={history} ticker={ticker} />
+
+      <NewsPanel ticker={ticker} />
 
       <section className="detail-grid">
         <div>

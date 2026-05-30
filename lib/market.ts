@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Candle, Quote, QuotesByTicker } from "./types";
+import type { Candle, NewsItem, Quote, QuotesByTicker } from "./types";
 
 const yahooBase = "https://query1.finance.yahoo.com";
 
@@ -82,6 +82,37 @@ export async function fetchHistory(ticker: string, range = "1mo"): Promise<Candl
   });
 }
 
+const newsResponseSchema = z.object({
+  news: z.array(
+    z.object({
+      title: z.string(),
+      link: z.string(),
+      publisher: z.string(),
+      providerPublishTime: z.number()
+    })
+  )
+});
+
+export async function fetchNews(ticker: string): Promise<NewsItem[]> {
+  const params = new URLSearchParams({ q: ticker, newsCount: "8", newsStart: "0" });
+  const response = await fetch(`${yahooBase}/v1/finance/search?${params}`, {
+    headers: { "user-agent": "Mozilla/5.0" },
+    next: { revalidate: 300 }
+  });
+
+  if (!response.ok) return [];
+
+  const json = newsResponseSchema.safeParse(await response.json());
+  if (!json.success) return [];
+
+  return json.data.news.map((item) => ({
+    title: item.title,
+    link: item.link,
+    publisher: item.publisher,
+    publishedAt: item.providerPublishTime
+  }));
+}
+
 async function chartQuotes(tickers: string[]): Promise<QuotesByTicker> {
   const pairs = await Promise.all(
     tickers.map(async (ticker) => {
@@ -135,5 +166,6 @@ function numberOrNull(value: unknown): number | null {
 function intervalFor(range: string): string {
   if (range === "1d") return "5m";
   if (range === "5d") return "15m";
+  if (range === "5y" || range === "10y" || range === "max") return "1wk";
   return "1d";
 }

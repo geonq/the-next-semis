@@ -1,13 +1,20 @@
+import { cookies } from "next/headers";
 import { ResearchClient } from "@/components/research-client";
-import { loadPositions, loadThesis, loadWatchlist, trackedTickers } from "@/lib/data";
+import { verifySession } from "@/lib/auth";
+import { loadThesis, trackedTickers } from "@/lib/data";
+import { getPositions, getWatchlist } from "@/lib/kv";
 import { fetchQuotes } from "@/lib/market";
-import { convictions, themes } from "@/lib/research";
 import { renderMarkdown } from "@/lib/markdown";
+import { convictions, themes } from "@/lib/research";
 
 export const dynamic = "force-dynamic";
 
 export default async function ResearchPage() {
-  const [positions, watchlist, thesis] = await Promise.all([loadPositions(), loadWatchlist(), loadThesis()]);
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  const isAdmin = token ? await verifySession(token) : false;
+
+  const [positions, watchlist, thesis] = await Promise.all([getPositions(), getWatchlist(), loadThesis()]);
   const tickers = trackedTickers(positions, watchlist);
   const quotes = await fetchQuotes(tickers);
 
@@ -19,6 +26,7 @@ export default async function ResearchPage() {
         tickers={tickers}
         themes={themes(watchlist)}
         convictions={convictions(watchlist)}
+        isAdmin={isAdmin}
       />
 
       <section className="hairline">

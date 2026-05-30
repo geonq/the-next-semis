@@ -58,3 +58,10 @@ export type Candle = {
   low: number;
   close: number;
 };
+
+export type NewsItem = {
+  title: string;
+  link: string;
+  publisher: string;
+  publishedAt: number;
+};

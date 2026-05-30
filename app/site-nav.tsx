@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SearchBar } from "@/components/search-bar";
 
 const navItems = [
   { href: "/", label: "Overview" },
@@ -13,10 +14,21 @@ const navItems = [
 export function SiteNav() {
   const pathname = usePathname();
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  useEffect(() => {
+    setIsAdmin(document.cookie.includes("is_admin=1"));
+  }, [pathname]);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setIsAdmin(false);
+    window.location.reload();
+  }
 
   return (
     <header className="app-header">
@@ -33,6 +45,16 @@ export function SiteNav() {
               </Link>
             );
           })}
+          <SearchBar />
+          {isAdmin ? (
+            <button className="theme-toggle" onClick={handleLogout} type="button">
+              logout
+            </button>
+          ) : (
+            <Link className={pathname === "/login" ? "active" : ""} href="/login">
+              login
+            </Link>
+          )}
           <button
             className="theme-toggle"
             aria-label="Toggle theme"

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { fetchHistory } from "@/lib/market";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ ticker: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = await params;
-  return NextResponse.json(await fetchHistory(ticker.toUpperCase(), "1mo"));
+  const { searchParams } = new URL(request.url);
+  const range = searchParams.get("range") ?? "5y";
+  return NextResponse.json(await fetchHistory(ticker.toUpperCase(), range));
 }

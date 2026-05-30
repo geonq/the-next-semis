@@ -9,6 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.0",
+    "jose": "^6.2.3",
     "lightweight-charts": "^5.2.0",
     "next": "^15.3.3",
     "react": "^19.1.0",
