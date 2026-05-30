@@ -117,7 +117,7 @@ export async function setThesis(markdown: string): Promise<void> {
 export async function getBrandColor(company: string): Promise<string | null | undefined> {
   const redis = getRedis();
   if (!redis) return undefined;
-  const value = await redis.get<string>(`brandcolor:v2:${company.toLowerCase()}`);
+  const value = await redis.get<string>(`brandcolor:v3:${company.toLowerCase()}`);
   if (value === null) return undefined;
   return value;
 }
@@ -125,5 +125,5 @@ export async function getBrandColor(company: string): Promise<string | null | un
 export async function setBrandColor(company: string, color: string | null): Promise<void> {
   const redis = getRedis();
   if (!redis || !color) return;
-  await redis.set(`brandcolor:v2:${company.toLowerCase()}`, color);
+  await redis.set(`brandcolor:v3:${company.toLowerCase()}`, color);
 }
