@@ -13,8 +13,11 @@ export async function GET(request: Request) {
     });
     const data = await res.json();
 
-    const suggestions = ((data.quotes as Record<string, string>[]) ?? [])
-      .filter((quote) => quote.quoteType === "EQUITY")
+    const quotes = ((data.quotes as Record<string, string>[]) ?? []).filter((quote) =>
+      quote.quoteType === "EQUITY" || quote.quoteType === "ETF"
+    );
+    const suggestions = quotes
+      .sort((a, b) => (a.quoteType === "EQUITY" ? 0 : 1) - (b.quoteType === "EQUITY" ? 0 : 1))
       .slice(0, 6)
       .map((quote) => ({
         ticker: quote.symbol,

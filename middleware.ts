@@ -2,7 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
-  const isWrite = request.method === "POST" || request.method === "DELETE" || request.method === "PUT";
+  const isWrite =
+    request.method === "POST" ||
+    request.method === "DELETE" ||
+    request.method === "PUT" ||
+    request.method === "PATCH";
   if (isWrite) {
     const token = request.cookies.get("session")?.value;
     if (!token || !(await verifySession(token))) {

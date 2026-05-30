@@ -4,38 +4,60 @@ import { useEffect, useRef } from "react";
 import { AreaSeries, createChart, type AreaData, type ISeriesApi, type Time } from "lightweight-charts";
 import type { Candle } from "@/lib/types";
 
-const FALLBACK_COLOR = "#ffffff";
+function readThemeColors() {
+  const style = getComputedStyle(document.documentElement);
+  const cssVar = (name: string) => style.getPropertyValue(name).trim();
+  return {
+    bg: cssVar("--color-bg"),
+    grid: cssVar("--color-grid"),
+    neutral: cssVar("--color-neutral"),
+    accent: cssVar("--color-accent")
+  };
+}
 
-export function PriceChart({ history, ticker, company }: { history: Candle[]; ticker: string; company: string }) {
+export function PriceChart({ history, company }: { history: Candle[]; ticker: string; company: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const brandColorRef = useRef<string | null>(null);
+
+  function applySeriesColor(color: string) {
+    seriesRef.current?.applyOptions({
+      lineColor: color,
+      topColor: color + "22",
+      bottomColor: "transparent"
+    });
+  }
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const style = getComputedStyle(document.documentElement);
-    const cssVar = (name: string) => style.getPropertyValue(name).trim();
-
+    const colors = readThemeColors();
     const chart = createChart(container, {
       layout: {
-        background: { color: cssVar("--color-bg") },
-        textColor: cssVar("--color-neutral")
+        background: { color: colors.bg },
+        textColor: colors.neutral
       },
       grid: {
-        vertLines: { color: cssVar("--color-grid") },
-        horzLines: { color: cssVar("--color-grid") }
+        vertLines: { color: colors.grid },
+        horzLines: { color: colors.grid }
       },
       width: container.clientWidth,
       height: 380,
-      timeScale: { timeVisible: false, secondsVisible: false },
-      rightPriceScale: { borderColor: cssVar("--color-grid") }
+      handleScroll: false,
+      handleScale: false,
+      timeScale: {
+        timeVisible: false,
+        secondsVisible: false,
+        lockVisibleTimeRangeOnResize: true
+      },
+      rightPriceScale: { borderColor: colors.grid }
     });
 
     const series = chart.addSeries(AreaSeries, {
-      lineColor: FALLBACK_COLOR,
-      topColor: FALLBACK_COLOR + "22",
+      lineColor: colors.accent,
+      topColor: colors.accent + "22",
       bottomColor: "transparent",
       lineWidth: 2,
       priceLineVisible: false,
@@ -45,13 +67,31 @@ export function PriceChart({ history, ticker, company }: { history: Candle[]; ti
     chartRef.current = chart;
     seriesRef.current = series;
 
-    const observer = new ResizeObserver(() => {
+    const resizeObserver = new ResizeObserver(() => {
       chart.applyOptions({ width: container.clientWidth });
     });
-    observer.observe(container);
+    resizeObserver.observe(container);
+
+    const themeObserver = new MutationObserver(() => {
+      const next = readThemeColors();
+      chart.applyOptions({
+        layout: {
+          background: { color: next.bg },
+          textColor: next.neutral
+        },
+        grid: {
+          vertLines: { color: next.grid },
+          horzLines: { color: next.grid }
+        },
+        rightPriceScale: { borderColor: next.grid }
+      });
+      applySeriesColor(brandColorRef.current ?? next.accent);
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
     return () => {
-      observer.disconnect();
+      resizeObserver.disconnect();
+      themeObserver.disconnect();
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
@@ -72,13 +112,9 @@ export function PriceChart({ history, ticker, company }: { history: Candle[]; ti
     fetch(`/api/brand-color?company=${encodeURIComponent(company)}`)
       .then((r) => r.json())
       .then(({ color }: { color: string | null }) => {
-        if (cancelled || !seriesRef.current) return;
-        const c = color ?? FALLBACK_COLOR;
-        seriesRef.current.applyOptions({
-          lineColor: c,
-          topColor: c + "22",
-          bottomColor: "transparent"
-        });
+        if (cancelled) return;
+        brandColorRef.current = color;
+        applySeriesColor(color ?? readThemeColors().accent);
       })
       .catch(() => {});
     return () => {

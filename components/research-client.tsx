@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { fmtAbs, fmtSignedPct, signClass } from "@/lib/format";
+import { capitalizeFirst, fmtAbs, fmtSignedPct, signClass } from "@/lib/format";
 import { enrichWatchlist } from "@/lib/research";
 import type { QuotesByTicker, SavedItem, WatchlistEntry } from "@/lib/types";
 import { ReadingList } from "./reading-list";
+import { SegmentedTabs } from "./segmented-tabs";
 import { TickerAutocomplete } from "./ticker-autocomplete";
 import { useLiveQuotes } from "./use-live-quotes";
 
@@ -15,7 +16,6 @@ export function ResearchClient({
   initialQuotes,
   tickers,
   themes,
-  convictions,
   isAdmin,
   savedItems
 }: {
@@ -24,22 +24,21 @@ export function ResearchClient({
   savedItems: SavedItem[];
   tickers: string[];
   themes: string[];
-  convictions: string[];
   isAdmin: boolean;
 }) {
   const router = useRouter();
   const quotes = useLiveQuotes(initialQuotes, tickers);
   const [activeThemes, setActiveThemes] = useState<Set<string>>(new Set());
-  const [activeConvictions, setActiveConvictions] = useState<Set<string>>(new Set());
+  const [conviction, setConviction] = useState("All");
   const enriched = enrichWatchlist(entries, quotes);
 
   const visible = useMemo(() => {
     return enriched.filter((entry) => {
       const themeOk = activeThemes.size === 0 || activeThemes.has(entry.theme);
-      const convictionOk = activeConvictions.size === 0 || activeConvictions.has(entry.conviction);
+      const convictionOk = conviction === "All" || entry.conviction === conviction.toLowerCase();
       return themeOk && convictionOk;
     });
-  }, [activeConvictions, activeThemes, enriched]);
+  }, [activeThemes, conviction, enriched]);
 
   async function deleteTicker(ticker: string) {
     await fetch("/api/watchlist", {
@@ -53,13 +52,15 @@ export function ResearchClient({
   return (
     <>
       <div className="research-toolbar">
+        <SegmentedTabs
+          options={["All", "Draft", "Medium", "High"]}
+          value={conviction}
+          onChange={setConviction}
+        />
         <FilterDropdown
           themes={themes}
-          convictions={convictions}
           activeThemes={activeThemes}
-          activeConvictions={activeConvictions}
           onChangeThemes={setActiveThemes}
-          onChangeConvictions={setActiveConvictions}
         />
       </div>
 
@@ -83,7 +84,7 @@ export function ResearchClient({
               </div>
 
               <p className="meta-line">
-                {entry.theme}
+                {capitalizeFirst(entry.theme)}
                 <span className="dot">·</span>
                 <span className={convictionClass(entry.conviction)}>{entry.conviction}</span>
                 <span className="dot">·</span>
@@ -127,22 +128,16 @@ export function ResearchClient({
 
 function FilterDropdown({
   themes,
-  convictions,
   activeThemes,
-  activeConvictions,
-  onChangeThemes,
-  onChangeConvictions
+  onChangeThemes
 }: {
   themes: string[];
-  convictions: string[];
   activeThemes: Set<string>;
-  activeConvictions: Set<string>;
   onChangeThemes: (s: Set<string>) => void;
-  onChangeConvictions: (s: Set<string>) => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const totalActive = activeThemes.size + activeConvictions.size;
+  const totalActive = activeThemes.size;
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -186,25 +181,7 @@ function FilterDropdown({
                     onClick={() => toggle(activeThemes, v, onChangeThemes)}
                     type="button"
                   >
-                    {v}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {convictions.length > 0 ? (
-            <div className="filter-section">
-              <p className="filter-section-label">Conviction</p>
-              <div className="filter-chips">
-                {convictions.map((v) => (
-                  <button
-                    key={v}
-                    className={`chip${activeConvictions.has(v) ? " active" : ""}`}
-                    onClick={() => toggle(activeConvictions, v, onChangeConvictions)}
-                    type="button"
-                  >
-                    {v}
+                    {capitalizeFirst(v)}
                   </button>
                 ))}
               </div>
@@ -216,7 +193,6 @@ function FilterDropdown({
               className="filter-clear"
               onClick={() => {
                 onChangeThemes(new Set());
-                onChangeConvictions(new Set());
               }}
               type="button"
             >
@@ -286,7 +262,7 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
         <TickerAutocomplete
           ticker={form.ticker}
           company={form.company}
-          onSelect={(ticker, company) => setForm((f) => ({ ...f, ticker, company }))}
+          onSelect={(ticker, company) => setForm((f) => ({ ...f, ticker, company: company ?? f.company }))}
           required
         />
         <input
@@ -302,11 +278,11 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
           required
           list="watchlist-themes"
           value={form.theme}
-          onChange={(e) => setForm((f) => ({ ...f, theme: e.target.value }))}
+          onChange={(e) => setForm((f) => ({ ...f, theme: capitalizeFirst(e.target.value) }))}
         />
         <datalist id="watchlist-themes">
           {themes.map((t) => (
-            <option key={t} value={t} />
+            <option key={t} value={capitalizeFirst(t)} />
           ))}
         </datalist>
 

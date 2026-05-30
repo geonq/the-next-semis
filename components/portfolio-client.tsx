@@ -158,7 +158,7 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
         <TickerAutocomplete
           ticker={form.ticker}
           company={form.company}
-          onSelect={(ticker, company) => setForm((f) => ({ ...f, ticker, company }))}
+          onSelect={(ticker, company) => setForm((f) => ({ ...f, ticker, company: company ?? f.company }))}
           required
         />
         <input

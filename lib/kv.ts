@@ -11,6 +11,7 @@ const savedItemSchema = z.object({
   url: z.string().url(),
   note: z.string().optional(),
   theme: z.string().optional(),
+  tickers: z.array(z.string()).default([]),
   addedAt: z.number()
 });
 
@@ -111,4 +112,18 @@ export async function setThesis(markdown: string): Promise<void> {
     return;
   }
   await fs.writeFile(path.join(process.cwd(), "data", "thesis.md"), markdown);
+}
+
+export async function getBrandColor(company: string): Promise<string | null | undefined> {
+  const redis = getRedis();
+  if (!redis) return undefined;
+  const value = await redis.get<string>(`brandcolor:${company.toLowerCase()}`);
+  if (value === null) return undefined;
+  return value === "__none__" ? null : value;
+}
+
+export async function setBrandColor(company: string, color: string | null): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  await redis.set(`brandcolor:${company.toLowerCase()}`, color ?? "__none__");
 }

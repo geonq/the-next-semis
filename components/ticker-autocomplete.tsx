@@ -12,7 +12,7 @@ export function TickerAutocomplete({
 }: {
   ticker: string;
   company: string;
-  onSelect: (ticker: string, company: string) => void;
+  onSelect: (ticker: string, company?: string) => void;
   required?: boolean;
 }) {
   const [query, setQuery] = useState(ticker);
@@ -39,7 +39,7 @@ export function TickerAutocomplete({
   function handleChange(value: string) {
     setQuery(value);
     setHighlighted(-1);
-    onSelect(value.toUpperCase(), company);
+    onSelect(value.toUpperCase());
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
     if (value.length < 1) {

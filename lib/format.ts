@@ -28,3 +28,7 @@ export function signClass(value: number | null | undefined): string {
   if (value < 0) return "loss";
   return "neutral";
 }
+
+export function capitalizeFirst(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { capitalizeFirst } from "@/lib/format";
 import { getWatchlist, setWatchlist } from "@/lib/kv";
 
 const addSchema = z.object({
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
   const exists = entries.some((e) => e.ticker === parsed.data.ticker);
   if (exists) return NextResponse.json({ error: "Ticker already exists" }, { status: 409 });
 
-  await setWatchlist([...entries, parsed.data]);
+  await setWatchlist([...entries, { ...parsed.data, theme: capitalizeFirst(parsed.data.theme.trim()) }]);
   return NextResponse.json({ ok: true });
 }
 

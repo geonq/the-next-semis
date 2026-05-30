@@ -1,17 +1,24 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { NewsPanel } from "@/components/news-panel";
 import { PriceChart } from "@/components/price-chart";
-import { fmtAbs, fmtSignedPct, fmtSignedUsd, signClass } from "@/lib/format";
-import { getWatchlist } from "@/lib/kv";
+import { ReadingList } from "@/components/reading-list";
+import { verifySession } from "@/lib/auth";
+import { capitalizeFirst, fmtAbs, fmtSignedPct, fmtSignedUsd, signClass } from "@/lib/format";
+import { getSavedItems, getWatchlist } from "@/lib/kv";
 import { fetchHistory, fetchQuotes } from "@/lib/market";
+import { themes } from "@/lib/research";
 
 export const dynamic = "force-dynamic";
 
 export default async function TickerPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = await params;
   const ticker = rawTicker.toUpperCase();
-  const entries = await getWatchlist();
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  const isAdmin = token ? await verifySession(token) : false;
+  const [entries, savedItems] = await Promise.all([getWatchlist(), getSavedItems()]);
   const entry = entries.find((candidate) => candidate.ticker === ticker);
   if (!entry) notFound();
 
@@ -31,7 +38,7 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
               {ticker}
               <span className="ticker-company">{entry.company}</span>
             </h1>
-            <p className="subtle">{entry.theme}</p>
+            <p className="subtle">{capitalizeFirst(entry.theme)}</p>
           </div>
 
           <div className="price-block">
@@ -76,6 +83,14 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
       </section>
 
       <NewsPanel ticker={ticker} />
+
+      <ReadingList
+        items={savedItems.filter((item) => item.tickers.includes(ticker))}
+        allItems={savedItems}
+        ticker={ticker}
+        isAdmin={isAdmin}
+        themes={themes(entries)}
+      />
     </div>
   );
 }

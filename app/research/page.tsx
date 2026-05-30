@@ -5,7 +5,7 @@ import { verifySession } from "@/lib/auth";
 import { trackedTickers } from "@/lib/data";
 import { getPositions, getSavedItems, getThesis, getWatchlist } from "@/lib/kv";
 import { fetchQuotes } from "@/lib/market";
-import { convictions, themes } from "@/lib/research";
+import { themes } from "@/lib/research";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,6 @@ export default async function ResearchPage() {
         initialQuotes={quotes}
         tickers={tickers}
         themes={themes(watchlist)}
-        convictions={convictions(watchlist)}
         isAdmin={isAdmin}
         savedItems={savedItems}
       />

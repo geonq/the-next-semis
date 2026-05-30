@@ -73,5 +73,6 @@ export type SavedItem = {
   url: string;
   note?: string;
   theme?: string;
+  tickers: string[];
   addedAt: number;
 };

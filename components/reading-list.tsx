@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { capitalizeFirst } from "@/lib/format";
 import type { SavedItem } from "@/lib/types";
+import { SegmentedTabs } from "./segmented-tabs";
 
 function domain(url: string): string {
   try {
@@ -21,15 +23,37 @@ function relativeTime(unixSeconds: number): string {
 
 export function ReadingList({
   items,
+  allItems,
+  ticker,
   isAdmin,
   themes
 }: {
   items: SavedItem[];
+  allItems?: SavedItem[];
+  ticker?: string;
   isAdmin: boolean;
   themes: string[];
 }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
+  const [type, setType] = useState("All");
+  const [theme, setTheme] = useState("All");
+  const [visibleCount, setVisibleCount] = useState(10);
+  const sortedItems = useMemo(() => items.slice().sort((a, b) => b.addedAt - a.addedAt), [items]);
+
+  const filteredItems = useMemo(() => {
+    return sortedItems.filter((item) => {
+      const typeOk = type === "All" || item.type === (type === "Articles" ? "article" : "paper");
+      const themeOk = theme === "All" || item.theme === theme;
+      return typeOk && themeOk;
+    });
+  }, [sortedItems, theme, type]);
+
+  const visibleItems = filteredItems.slice(0, visibleCount);
+  const attachable = ticker
+    ? (allItems ?? []).filter((item) => !item.tickers.includes(ticker)).sort((a, b) => b.addedAt - a.addedAt)
+    : [];
 
   async function deleteItem(id: string) {
     await fetch("/api/saved-items", {
@@ -40,59 +64,132 @@ export function ReadingList({
     router.refresh();
   }
 
+  async function patchItem(id: string, action: "attach" | "detach") {
+    if (!ticker) return;
+    await fetch("/api/saved-items", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ticker, action })
+    });
+    setShowAttach(false);
+    router.refresh();
+  }
+
+  function changeType(next: string) {
+    setType(next);
+    setVisibleCount(10);
+  }
+
+  function changeTheme(next: string) {
+    setTheme(next);
+    setVisibleCount(10);
+  }
+
   return (
     <div className="reading-section">
       <div className="reading-header">
-        <p className="section-label" style={{ margin: 0 }}>Reading List</p>
-        {isAdmin && !showForm ? (
-          <button className="add-btn" onClick={() => setShowForm(true)} type="button">
-            + Save link
-          </button>
+        <p className="section-label reading-title-label">Reading List</p>
+        <div className="reading-actions">
+          {isAdmin && ticker ? (
+            <button className="add-btn" onClick={() => setShowAttach((v) => !v)} type="button">
+              + Add existing
+            </button>
+          ) : null}
+          {isAdmin && !showForm ? (
+            <button className="add-btn" onClick={() => setShowForm(true)} type="button">
+              + Save link
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="reading-toolbar">
+        <SegmentedTabs options={["All", "Articles", "Papers"]} value={type} onChange={changeType} />
+        {themes.length > 0 ? (
+          <select className="add-input reading-theme-filter" value={theme} onChange={(e) => changeTheme(e.target.value)}>
+            <option value="All">All themes</option>
+            {themes.map((candidate) => (
+              <option key={candidate} value={candidate}>
+                {capitalizeFirst(candidate)}
+              </option>
+            ))}
+          </select>
         ) : null}
       </div>
 
-      {isAdmin && showForm ? (
-        <SaveForm themes={themes} onSaved={() => { setShowForm(false); router.refresh(); }} onCancel={() => setShowForm(false)} />
+      {isAdmin && ticker && showAttach ? (
+        <div className="attach-panel">
+          {attachable.length === 0 ? (
+            <p className="muted">No unattached links.</p>
+          ) : (
+            attachable.map((item) => (
+              <button className="attach-item" key={item.id} onClick={() => patchItem(item.id, "attach")} type="button">
+                <span className={`reading-badge ${item.type}`}>{item.type}</span>
+                <span>{item.title}</span>
+              </button>
+            ))
+          )}
+        </div>
       ) : null}
 
-      {items.length === 0 && !showForm ? (
-        <p className="muted" style={{ fontSize: 13 }}>No links saved yet.</p>
+      {isAdmin && showForm ? (
+        <SaveForm
+          themes={themes}
+          ticker={ticker}
+          onSaved={() => {
+            setShowForm(false);
+            router.refresh();
+          }}
+          onCancel={() => setShowForm(false)}
+        />
+      ) : null}
+
+      {filteredItems.length === 0 && !showForm ? (
+        <p className="muted reading-empty">No links saved yet.</p>
       ) : (
-        <div className="reading-list">
-          {items.map((item) => (
-            <div className="reading-item" key={item.id}>
-              <div className="reading-item-left">
-                <div className="reading-item-top">
-                  <span className={`reading-badge ${item.type}`}>{item.type}</span>
-                  <a
-                    className="reading-title"
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {item.title}
-                  </a>
+        <>
+          <div className="reading-list">
+            {visibleItems.map((item) => (
+              <div className="reading-item" key={item.id}>
+                <div className="reading-item-left">
+                  <div className="reading-item-top">
+                    <span className={`reading-badge ${item.type}`}>{item.type}</span>
+                    <a className="reading-title" href={item.url} target="_blank" rel="noopener noreferrer">
+                      {item.title}
+                    </a>
+                  </div>
+                  {item.note ? <p className="reading-note">{item.note}</p> : null}
+                  {item.theme ? <p className="reading-note">{capitalizeFirst(item.theme)}</p> : null}
                 </div>
-                {item.note ? <p className="reading-note">{item.note}</p> : null}
+                <div className="reading-item-right">
+                  <span>{domain(item.url)}</span>
+                  <span className="dot">·</span>
+                  <span>{relativeTime(item.addedAt)}</span>
+                  {isAdmin && ticker ? (
+                    <button
+                      className="reading-delete"
+                      onClick={() => patchItem(item.id, "detach")}
+                      type="button"
+                      aria-label={`Remove from ${ticker}`}
+                    >
+                      ↩
+                    </button>
+                  ) : null}
+                  {isAdmin ? (
+                    <button className="reading-delete" onClick={() => deleteItem(item.id)} type="button" aria-label="Delete">
+                      ✕
+                    </button>
+                  ) : null}
+                </div>
               </div>
-              <div className="reading-item-right">
-                <span>{domain(item.url)}</span>
-                <span className="dot">·</span>
-                <span>{relativeTime(item.addedAt)}</span>
-                {isAdmin ? (
-                  <button
-                    className="reading-delete"
-                    onClick={() => deleteItem(item.id)}
-                    type="button"
-                    aria-label="Remove"
-                  >
-                    ✕
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          {visibleItems.length < filteredItems.length ? (
+            <button className="reading-more" onClick={() => setVisibleCount((count) => count + 10)} type="button">
+              ⋯
+            </button>
+          ) : null}
+        </>
       )}
     </div>
   );
@@ -100,10 +197,12 @@ export function ReadingList({
 
 function SaveForm({
   themes,
+  ticker,
   onSaved,
   onCancel
 }: {
   themes: string[];
+  ticker?: string;
   onSaved: () => void;
   onCancel: () => void;
 }) {
@@ -123,7 +222,7 @@ function SaveForm({
       const data = await res.json();
       if (data.title) setTitle(data.title);
     } catch {
-      // ignore — user can type manually
+      // User can type manually.
     } finally {
       setFetching(false);
     }
@@ -136,7 +235,14 @@ function SaveForm({
     const res = await fetch("/api/saved-items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, url, title, note: note || undefined, theme: theme || undefined })
+      body: JSON.stringify({
+        type,
+        url,
+        title,
+        note: note || undefined,
+        theme: theme || undefined,
+        tickers: ticker ? [ticker] : []
+      })
     });
 
     if (res.ok) {
@@ -149,22 +255,11 @@ function SaveForm({
 
   return (
     <form className="save-form" onSubmit={handleSubmit}>
-      <div className="type-toggle">
-        <button
-          className={`chip${type === "article" ? " active" : ""}`}
-          onClick={() => setType("article")}
-          type="button"
-        >
-          Article
-        </button>
-        <button
-          className={`chip${type === "paper" ? " active" : ""}`}
-          onClick={() => setType("paper")}
-          type="button"
-        >
-          Paper
-        </button>
-      </div>
+      <SegmentedTabs
+        options={["Article", "Paper"]}
+        value={type === "article" ? "Article" : "Paper"}
+        onChange={(next) => setType(next === "Paper" ? "paper" : "article")}
+      />
 
       <div className="save-fields">
         <input
@@ -178,7 +273,7 @@ function SaveForm({
         />
         <input
           className="add-input save-title"
-          placeholder={fetching ? "Fetching title…" : "Title"}
+          placeholder={fetching ? "Fetching title..." : "Title"}
           required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -186,8 +281,10 @@ function SaveForm({
         {themes.length > 0 ? (
           <select className="add-input save-theme" value={theme} onChange={(e) => setTheme(e.target.value)}>
             <option value="">Theme (optional)</option>
-            {themes.map((t) => (
-              <option key={t} value={t}>{t}</option>
+            {themes.map((candidate) => (
+              <option key={candidate} value={candidate}>
+                {capitalizeFirst(candidate)}
+              </option>
             ))}
           </select>
         ) : null}
@@ -200,10 +297,10 @@ function SaveForm({
         />
       </div>
 
-      {error ? <p className="loss" style={{ fontSize: 12, margin: 0 }}>{error}</p> : null}
+      {error ? <p className="loss save-error">{error}</p> : null}
 
       <div className="add-actions">
-        <button className="login-btn" type="submit" style={{ fontSize: 13, padding: "7px 18px" }}>
+        <button className="login-btn save-submit" type="submit">
           Save
         </button>
         <button className="cancel-btn" onClick={onCancel} type="button">
