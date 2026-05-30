@@ -17,7 +17,3 @@ export function enrichWatchlist(entries: WatchlistEntry[], quotes: QuotesByTicke
 export function themes(entries: WatchlistEntry[]): string[] {
   return Array.from(new Set(entries.map((entry) => entry.theme))).sort();
 }
-
-export function convictions(entries: WatchlistEntry[]): string[] {
-  return Array.from(new Set(entries.map((entry) => entry.conviction))).sort();
-}
