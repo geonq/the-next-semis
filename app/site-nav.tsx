@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { SearchBar } from "@/components/search-bar";
 
 const navItems = [
   { href: "/", label: "Overview" },
@@ -45,7 +44,6 @@ export function SiteNav() {
               </Link>
             );
           })}
-          <SearchBar />
           {isAdmin ? (
             <button className="theme-toggle" onClick={handleLogout} type="button">
               logout

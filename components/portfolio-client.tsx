@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import { enrichPositions, portfolioSummary } from "@/lib/portfolio";
 import type { Position, QuotesByTicker } from "@/lib/types";
+import { TickerAutocomplete } from "./ticker-autocomplete";
 import { useLiveQuotes } from "./use-live-quotes";
 
 export function PortfolioClient({
@@ -154,12 +155,11 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
     <form className="add-form" onSubmit={handleSubmit}>
       <p className="section-label">New position</p>
       <div className="add-fields">
-        <input
-          className="add-input"
-          placeholder="Ticker"
+        <TickerAutocomplete
+          ticker={form.ticker}
+          company={form.company}
+          onSelect={(ticker, company) => setForm((f) => ({ ...f, ticker, company }))}
           required
-          value={form.ticker}
-          onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value }))}
         />
         <input
           className="add-input"
@@ -197,9 +197,22 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
           className="add-input"
           placeholder="Sector"
           required
+          list="position-sectors"
           value={form.sector}
           onChange={(e) => setForm((f) => ({ ...f, sector: e.target.value }))}
         />
+        <datalist id="position-sectors">
+          <option value="Semiconductors" />
+          <option value="Technology" />
+          <option value="Energy" />
+          <option value="Industrials" />
+          <option value="Healthcare" />
+          <option value="Materials" />
+          <option value="Financials" />
+          <option value="Consumer" />
+          <option value="Communication" />
+          <option value="Utilities" />
+        </datalist>
       </div>
       {error ? <p className="loss">{error}</p> : null}
       <div className="add-actions">

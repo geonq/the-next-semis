@@ -65,3 +65,13 @@ export type NewsItem = {
   publisher: string;
   publishedAt: number;
 };
+
+export type SavedItem = {
+  id: string;
+  type: "article" | "paper";
+  title: string;
+  url: string;
+  note?: string;
+  theme?: string;
+  addedAt: number;
+};

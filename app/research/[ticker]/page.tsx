@@ -15,7 +15,7 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
   const entry = entries.find((candidate) => candidate.ticker === ticker);
   if (!entry) notFound();
 
-  const [quotes, history] = await Promise.all([fetchQuotes([ticker]), fetchHistory(ticker, "5y")]);
+  const [quotes, history] = await Promise.all([fetchQuotes([ticker]), fetchHistory(ticker, "max")]);
   const quote = quotes[ticker];
 
   return (
@@ -50,9 +50,7 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
         </div>
       </section>
 
-      <PriceChart history={history} ticker={ticker} />
-
-      <NewsPanel ticker={ticker} />
+      <PriceChart history={history} ticker={ticker} company={entry.company} />
 
       <section className="detail-grid">
         <div>
@@ -76,6 +74,8 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
           </ul>
         </div>
       </section>
+
+      <NewsPanel ticker={ticker} />
     </div>
   );
 }

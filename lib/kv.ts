@@ -1,7 +1,23 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { Position, WatchlistEntry } from "./types";
-import { loadPositions, loadWatchlist } from "./data";
+import { z } from "zod";
+import type { Position, SavedItem, WatchlistEntry } from "./types";
+import { loadPositions, loadThesis, loadWatchlist } from "./data";
+
+const savedItemSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(["article", "paper"]),
+  title: z.string().min(1),
+  url: z.string().url(),
+  note: z.string().optional(),
+  theme: z.string().optional(),
+  addedAt: z.number()
+});
+
+function parseSavedItems(data: unknown): SavedItem[] {
+  const parsed = z.array(savedItemSchema).safeParse(data);
+  return parsed.success ? parsed.data : [];
+}
 
 function getRedis() {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -35,14 +51,27 @@ export async function getWatchlist(): Promise<WatchlistEntry[]> {
   return loadWatchlist();
 }
 
+export async function getSavedItems(): Promise<SavedItem[]> {
+  const redis = getRedis();
+  if (redis) {
+    const data = await redis.get("saved_items");
+    return parseSavedItems(data ?? []);
+  }
+  try {
+    const raw = await fs.readFile(path.join(process.cwd(), "data", "saved_items.json"), "utf8");
+    return parseSavedItems(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
 export async function setPositions(positions: Position[]): Promise<void> {
   const redis = getRedis();
   if (redis) {
     await redis.set("positions", positions);
     return;
   }
-  const dataPath = path.join(process.cwd(), "data", "positions.json");
-  await fs.writeFile(dataPath, JSON.stringify(positions, null, 2));
+  await fs.writeFile(path.join(process.cwd(), "data", "positions.json"), JSON.stringify(positions, null, 2));
 }
 
 export async function setWatchlist(entries: WatchlistEntry[]): Promise<void> {
@@ -51,6 +80,35 @@ export async function setWatchlist(entries: WatchlistEntry[]): Promise<void> {
     await redis.set("watchlist", entries);
     return;
   }
-  const dataPath = path.join(process.cwd(), "data", "watchlist.json");
-  await fs.writeFile(dataPath, JSON.stringify(entries, null, 2));
+  await fs.writeFile(path.join(process.cwd(), "data", "watchlist.json"), JSON.stringify(entries, null, 2));
+}
+
+export async function setSavedItems(items: SavedItem[]): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    await redis.set("saved_items", items);
+    return;
+  }
+  await fs.writeFile(path.join(process.cwd(), "data", "saved_items.json"), JSON.stringify(items, null, 2));
+}
+
+export async function getThesis(): Promise<string> {
+  const redis = getRedis();
+  if (redis) {
+    const data = await redis.get<string>("thesis");
+    if (data) return data;
+    const seed = await loadThesis();
+    await redis.set("thesis", seed);
+    return seed;
+  }
+  return loadThesis();
+}
+
+export async function setThesis(markdown: string): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    await redis.set("thesis", markdown);
+    return;
+  }
+  await fs.writeFile(path.join(process.cwd(), "data", "thesis.md"), markdown);
 }

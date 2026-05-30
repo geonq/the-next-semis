@@ -1,24 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { AreaSeries, createChart, type AreaData, type ISeriesApi, type Time } from "lightweight-charts";
 import type { Candle } from "@/lib/types";
 
-const RANGES = [
-  { label: "1M", value: "1mo" },
-  { label: "6M", value: "6mo" },
-  { label: "1Y", value: "1y" },
-  { label: "5Y", value: "5y" },
-  { label: "Max", value: "max" },
-];
+const FALLBACK_COLOR = "#ffffff";
 
-export function PriceChart({ history: initialHistory, ticker }: { history: Candle[]; ticker: string }) {
+export function PriceChart({ history, ticker, company }: { history: Candle[]; ticker: string; company: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
-  const [range, setRange] = useState("5y");
-  const [history, setHistory] = useState(initialHistory);
-  const didMount = useRef(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -26,7 +17,6 @@ export function PriceChart({ history: initialHistory, ticker }: { history: Candl
 
     const style = getComputedStyle(document.documentElement);
     const cssVar = (name: string) => style.getPropertyValue(name).trim();
-    const accent = cssVar("--color-accent");
 
     const chart = createChart(container, {
       layout: {
@@ -44,8 +34,8 @@ export function PriceChart({ history: initialHistory, ticker }: { history: Candl
     });
 
     const series = chart.addSeries(AreaSeries, {
-      lineColor: accent,
-      topColor: accent + "33",
+      lineColor: FALLBACK_COLOR,
+      topColor: FALLBACK_COLOR + "22",
       bottomColor: "transparent",
       lineWidth: 2,
       priceLineVisible: false,
@@ -77,35 +67,27 @@ export function PriceChart({ history: initialHistory, ticker }: { history: Candl
   }, [history]);
 
   useEffect(() => {
-    if (!didMount.current) {
-      didMount.current = true;
-      return;
-    }
+    if (!company) return;
     let cancelled = false;
-    fetch(`/api/history/${ticker}?range=${range}`)
+    fetch(`/api/brand-color?company=${encodeURIComponent(company)}`)
       .then((r) => r.json())
-      .then((data: Candle[]) => {
-        if (!cancelled) setHistory(data);
+      .then(({ color }: { color: string | null }) => {
+        if (cancelled || !seriesRef.current) return;
+        const c = color ?? FALLBACK_COLOR;
+        seriesRef.current.applyOptions({
+          lineColor: c,
+          topColor: c + "22",
+          bottomColor: "transparent"
+        });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [range, ticker]);
+  }, [company]);
 
   return (
     <div className="chart-section">
-      <div className="range-picker">
-        {RANGES.map((r) => (
-          <button
-            key={r.value}
-            className={`chip${range === r.value ? " active" : ""}`}
-            onClick={() => setRange(r.value)}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
       <div className="chart" ref={containerRef} />
     </div>
   );

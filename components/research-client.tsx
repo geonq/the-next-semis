@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { fmtAbs, fmtSignedPct, signClass } from "@/lib/format";
 import { enrichWatchlist } from "@/lib/research";
-import type { QuotesByTicker, WatchlistEntry } from "@/lib/types";
+import type { QuotesByTicker, SavedItem, WatchlistEntry } from "@/lib/types";
+import { ReadingList } from "./reading-list";
+import { TickerAutocomplete } from "./ticker-autocomplete";
 import { useLiveQuotes } from "./use-live-quotes";
 
 export function ResearchClient({
@@ -14,10 +16,12 @@ export function ResearchClient({
   tickers,
   themes,
   convictions,
-  isAdmin
+  isAdmin,
+  savedItems
 }: {
   entries: WatchlistEntry[];
   initialQuotes: QuotesByTicker;
+  savedItems: SavedItem[];
   tickers: string[];
   themes: string[];
   convictions: string[];
@@ -48,13 +52,14 @@ export function ResearchClient({
 
   return (
     <>
-      <div className="filter-bar">
-        <FilterGroup label="Theme" values={themes} active={activeThemes} onChange={setActiveThemes} />
-        <FilterGroup
-          label="Conviction"
-          values={convictions}
-          active={activeConvictions}
-          onChange={setActiveConvictions}
+      <div className="research-toolbar">
+        <FilterDropdown
+          themes={themes}
+          convictions={convictions}
+          activeThemes={activeThemes}
+          activeConvictions={activeConvictions}
+          onChangeThemes={setActiveThemes}
+          onChangeConvictions={setActiveConvictions}
         />
       </div>
 
@@ -109,12 +114,122 @@ export function ResearchClient({
         {visible.length === 0 ? <p className="muted">No entries match the active filters.</p> : null}
       </div>
 
-      {isAdmin ? <AddTickerForm onAdded={() => router.refresh()} /> : null}
+      {isAdmin ? <AddTickerForm themes={themes} onAdded={() => router.refresh()} /> : null}
+
+      <ReadingList
+        items={savedItems.slice().sort((a, b) => b.addedAt - a.addedAt)}
+        isAdmin={isAdmin}
+        themes={themes}
+      />
     </>
   );
 }
 
-function AddTickerForm({ onAdded }: { onAdded: () => void }) {
+function FilterDropdown({
+  themes,
+  convictions,
+  activeThemes,
+  activeConvictions,
+  onChangeThemes,
+  onChangeConvictions
+}: {
+  themes: string[];
+  convictions: string[];
+  activeThemes: Set<string>;
+  activeConvictions: Set<string>;
+  onChangeThemes: (s: Set<string>) => void;
+  onChangeConvictions: (s: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const totalActive = activeThemes.size + activeConvictions.size;
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  function toggle(set: Set<string>, value: string, onChange: (s: Set<string>) => void) {
+    const next = new Set(set);
+    if (next.has(value)) next.delete(value);
+    else next.add(value);
+    onChange(next);
+  }
+
+  return (
+    <div className="filter-wrap" ref={wrapRef}>
+      <button
+        className={`filter-btn${totalActive > 0 ? " filter-btn-active" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        type="button"
+      >
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+          <path d="M1 2h11M3 6.5h7M5 11h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+        Filter
+        {totalActive > 0 ? <span className="filter-count">{totalActive}</span> : null}
+      </button>
+
+      {open ? (
+        <div className="filter-panel">
+          {themes.length > 0 ? (
+            <div className="filter-section">
+              <p className="filter-section-label">Theme</p>
+              <div className="filter-chips">
+                {themes.map((v) => (
+                  <button
+                    key={v}
+                    className={`chip${activeThemes.has(v) ? " active" : ""}`}
+                    onClick={() => toggle(activeThemes, v, onChangeThemes)}
+                    type="button"
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {convictions.length > 0 ? (
+            <div className="filter-section">
+              <p className="filter-section-label">Conviction</p>
+              <div className="filter-chips">
+                {convictions.map((v) => (
+                  <button
+                    key={v}
+                    className={`chip${activeConvictions.has(v) ? " active" : ""}`}
+                    onClick={() => toggle(activeConvictions, v, onChangeConvictions)}
+                    type="button"
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {totalActive > 0 ? (
+            <button
+              className="filter-clear"
+              onClick={() => {
+                onChangeThemes(new Set());
+                onChangeConvictions(new Set());
+              }}
+              type="button"
+            >
+              Clear all
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => void }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
@@ -168,12 +283,11 @@ function AddTickerForm({ onAdded }: { onAdded: () => void }) {
     <form className="add-form" onSubmit={handleSubmit}>
       <p className="section-label">New watchlist entry</p>
       <div className="add-fields">
-        <input
-          className="add-input"
-          placeholder="Ticker"
+        <TickerAutocomplete
+          ticker={form.ticker}
+          company={form.company}
+          onSelect={(ticker, company) => setForm((f) => ({ ...f, ticker, company }))}
           required
-          value={form.ticker}
-          onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value }))}
         />
         <input
           className="add-input"
@@ -186,21 +300,36 @@ function AddTickerForm({ onAdded }: { onAdded: () => void }) {
           className="add-input"
           placeholder="Theme"
           required
+          list="watchlist-themes"
           value={form.theme}
           onChange={(e) => setForm((f) => ({ ...f, theme: e.target.value }))}
         />
-        <input
-          className="add-input"
-          placeholder="Conviction (draft / medium / high)"
+        <datalist id="watchlist-themes">
+          {themes.map((t) => (
+            <option key={t} value={t} />
+          ))}
+        </datalist>
+
+        <select
+          className="add-input add-select"
           value={form.conviction}
           onChange={(e) => setForm((f) => ({ ...f, conviction: e.target.value }))}
-        />
-        <input
-          className="add-input"
-          placeholder="Status (watching / triggered / invalidated)"
+        >
+          <option value="draft">draft</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+        </select>
+
+        <select
+          className="add-input add-select"
           value={form.status}
           onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-        />
+        >
+          <option value="watching">watching</option>
+          <option value="triggered">triggered</option>
+          <option value="invalidated">invalidated</option>
+        </select>
+
         <textarea
           className="add-input add-textarea"
           placeholder="Entry conditions (one per line)"
@@ -211,43 +340,14 @@ function AddTickerForm({ onAdded }: { onAdded: () => void }) {
       </div>
       {error ? <p className="loss">{error}</p> : null}
       <div className="add-actions">
-        <button className="add-btn" type="submit">Add</button>
-        <button className="cancel-btn" onClick={() => setOpen(false)} type="button">Cancel</button>
+        <button className="add-btn" type="submit">
+          Add
+        </button>
+        <button className="cancel-btn" onClick={() => setOpen(false)} type="button">
+          Cancel
+        </button>
       </div>
     </form>
-  );
-}
-
-function FilterGroup({
-  label,
-  values,
-  active,
-  onChange
-}: {
-  label: string;
-  values: string[];
-  active: Set<string>;
-  onChange: (next: Set<string>) => void;
-}) {
-  return (
-    <div className="filter-group">
-      <span className="subtle">{label}</span>
-      {values.map((value) => (
-        <button
-          className={`chip ${active.has(value) ? "active" : ""}`}
-          key={value}
-          onClick={() => {
-            const next = new Set(active);
-            if (next.has(value)) next.delete(value);
-            else next.add(value);
-            onChange(next);
-          }}
-          type="button"
-        >
-          {value}
-        </button>
-      ))}
-    </div>
   );
 }
 

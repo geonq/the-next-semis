@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
-  const isWrite = request.method === "POST" || request.method === "DELETE";
+  const isWrite = request.method === "POST" || request.method === "DELETE" || request.method === "PUT";
   if (isWrite) {
     const token = request.cookies.get("session")?.value;
     if (!token || !(await verifySession(token))) {
@@ -13,5 +13,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/positions/:path*", "/api/watchlist/:path*"]
+  matcher: ["/api/positions/:path*", "/api/watchlist/:path*", "/api/saved-items/:path*", "/api/thesis/:path*"]
 };
