@@ -55,8 +55,11 @@ PROJECT_CONTEXT.md
 REFERENCE.md
 .claude/
 .claude.json
-tasks/todo.md
-Tasks/todo.md
+tasks/
+Tasks/
 
 # Coordination files — session state and workflow context
 Coordination/
+
+# Archived Phoenix/Elixir dashboard — preserved on branch `archived`, not on main
+archived/
