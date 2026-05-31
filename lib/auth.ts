@@ -2,10 +2,14 @@ import { SignJWT, jwtVerify } from "jose";
 
 function secret(): Uint8Array {
   const value = process.env.JWT_SECRET;
-  if (!value && process.env.NODE_ENV === "production") {
-    throw new Error("JWT_SECRET is required in production.");
+  if (value) return new TextEncoder().encode(value);
+  // Only ever fall back to a known dev secret in true local development. Vercel
+  // preview AND production both run NODE_ENV=production, so a missing JWT_SECRET
+  // there is a hard error rather than a silently-forgeable token.
+  if (process.env.NODE_ENV !== "development") {
+    throw new Error("JWT_SECRET is required outside local development.");
   }
-  return new TextEncoder().encode(value ?? "dev-secret-change-me-in-production");
+  return new TextEncoder().encode("dev-secret-change-me-in-production");
 }
 
 export async function signSession(): Promise<string> {

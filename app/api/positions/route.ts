@@ -3,13 +3,13 @@ import { z } from "zod";
 import { getPositions, setPositions } from "@/lib/kv";
 
 const addSchema = z.object({
-  ticker: z.string().min(1).transform((v) => v.toUpperCase()),
-  company: z.string().min(1),
-  shares: z.number(),
-  average_cost: z.number(),
-  currency: z.string().min(1),
-  sector: z.string().min(1),
-  thesis_id: z.string().optional()
+  ticker: z.string().min(1).max(20).transform((v) => v.toUpperCase()),
+  company: z.string().min(1).max(200),
+  shares: z.number().finite(),
+  average_cost: z.number().finite(),
+  currency: z.string().min(1).max(10),
+  sector: z.string().min(1).max(100),
+  thesis_id: z.string().max(100).optional()
 });
 
 export async function POST(request: Request) {

@@ -2,8 +2,9 @@ import { getRedis } from "./kv";
 
 // Redis-backed fixed-window limiter for the login endpoint. Counts *failed*
 // attempts per IP so a brute-forcer is locked out, while a legitimate user who
-// logs in successfully is never penalized. Without Redis (local dev) it fails
-// open — rate limiting only matters on the public Vercel deployment.
+// logs in successfully is never penalized. In local dev (NODE_ENV=development)
+// it fails open. In production a missing Redis is a misconfiguration — we fail
+// CLOSED (throw) rather than silently expose login to unlimited brute force.
 
 const WINDOW_SEC = 15 * 60; // 15 minutes
 const MAX_FAILURES = 8;
@@ -14,8 +15,15 @@ function key(ip: string): string {
   return `login_fail:${ip}`;
 }
 
+function requireRedisInProd(redis: ReturnType<typeof getRedis>) {
+  if (!redis && process.env.NODE_ENV !== "development") {
+    throw new Error("Upstash Redis is required for login rate limiting in production.");
+  }
+  return redis;
+}
+
 export async function checkLoginRateLimit(ip: string): Promise<RateLimitResult> {
-  const redis = getRedis();
+  const redis = requireRedisInProd(getRedis());
   if (!redis) return { allowed: true, remaining: MAX_FAILURES, retryAfterSec: 0 };
 
   const count = (await redis.get<number>(key(ip))) ?? 0;

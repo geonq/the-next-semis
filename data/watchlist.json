@@ -23,7 +23,7 @@
   },
   {
     "ticker": "RHM.DE",
-    "company": "RHEINMETALL AG                I",
+    "company": "Rheinmetall AG",
     "theme": "Defense",
     "conditions": [
       "ww3 breaks out",
@@ -113,7 +113,7 @@
   },
   {
     "ticker": "1211.HK",
-    "company": "BYD COMPANY",
+    "company": "BYD Company",
     "theme": "Energy Storage",
     "conditions": [
       "just like tesla"

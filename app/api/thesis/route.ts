@@ -16,8 +16,8 @@ export async function PUT(request: Request) {
   }
 
   const { markdown } = (await request.json()) as { markdown: string };
-  if (typeof markdown !== "string") {
-    return NextResponse.json({ error: "markdown must be a string" }, { status: 400 });
+  if (typeof markdown !== "string" || markdown.length > 500_000) {
+    return NextResponse.json({ error: "markdown must be a string under 500k chars" }, { status: 400 });
   }
 
   await setThesis(markdown);

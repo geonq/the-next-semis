@@ -5,22 +5,22 @@ import { getSavedItems, setSavedItems } from "@/lib/kv";
 
 const addSchema = z.object({
   type: z.enum(["article", "paper"]),
-  title: z.string().min(1),
-  url: z.string().url(),
-  note: z.string().optional(),
-  theme: z.string().optional(),
-  tickers: z.array(z.string()).optional()
+  title: z.string().min(1).max(500),
+  url: z.string().url().max(2000),
+  note: z.string().max(5000).optional(),
+  theme: z.string().max(100).optional(),
+  tickers: z.array(z.string().max(20)).max(50).optional()
 });
 
 // Edit an existing item's content (id stays; ticker attachments unchanged — those
 // are managed by PATCH attach/detach).
 const editSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().min(1).max(100),
   type: z.enum(["article", "paper"]),
-  title: z.string().min(1),
-  url: z.string().url(),
-  note: z.string().optional(),
-  theme: z.string().optional()
+  title: z.string().min(1).max(500),
+  url: z.string().url().max(2000),
+  note: z.string().max(5000).optional(),
+  theme: z.string().max(100).optional()
 });
 
 export async function GET() {

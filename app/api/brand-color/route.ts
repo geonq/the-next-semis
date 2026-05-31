@@ -4,32 +4,24 @@ import { getBrandColor, setBrandColor } from "@/lib/kv";
 
 export const runtime = "nodejs";
 
-// Curated brand-color verdicts for companies the automated pipeline gets wrong.
-// Keys are lowercase substrings of the company name — first match wins.
-//   string  -> authoritative brand color (SPA/no-signal sites we can't extract)
-//   null    -> monochrome brand (white/black logo); use the theme accent, never guess
-// `hit: false` means "not curated, run the extraction pipeline".
-const BRAND_OVERRIDES: Record<string, string | null> = {
-  hyperliquid: "#96fbd4", // turquoise; SPA with no extractable signal
-  palantir: null // white/black wordmark — favicon pixel guessing wrongly returns red
-};
-
-function lookupOverride(company: string): { hit: boolean; color: string | null } {
-  const lower = company.toLowerCase();
-  for (const [key, color] of Object.entries(BRAND_OVERRIDES)) {
-    if (lower.includes(key)) return { hit: true, color };
-  }
-  return { hit: false, color: null };
-}
-
+// Brand color is detected fully automatically — no hardcoded color values, no override
+// table. Signals are ranked by SOURCE AUTHORITY (a color a company *declares* in its
+// manifest / theme-color / a CSS var named for the brand outranks a color merely
+// *present* on the page), not by vividness alone. Below a confidence floor we return
+// `null` and the UI falls back to the theme accent — the correct answer for monochrome
+// brands. See `resolveColor` for the pipeline.
 const browserUa = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 const genericColors = new Set(["#fff", "#ffffff", "#000", "#000000"]);
 const genericCssColors = new Set(["#18bc9c", "#2f96b4", "#51a351", "#bd362f", "#f89406", "#ff4136"]);
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const companySuffixPattern = /\b(Holding|Holdings|N\.V\.|Inc\.|Corp\.|Corporation|Ltd\.?|PLC|S\.A\.|AG|I)\b/gi;
+const companySuffixPattern = /\b(Holding|Holdings|N\.V\.|Inc\.|Corp\.|Corporation|Ltd\.?|PLC|S\.A\.|AG)\b/gi;
+// Total CSS we'll pull across all stylesheets per request. A byte budget (not a count
+// cap) so a brand color living in the Nth stylesheet — RTX's red lives in the 6th —
+// is never truncated out, while a pathological page can't make us fetch forever.
+const cssByteBudget = 1_500_000;
 // Never let the browser serve a stale color. The server is already fast — Redis
-// caches the verdict in production and curated/override paths return instantly —
-// so there's no need for an HTTP cache that can pin a wrong value for a day.
+// caches the verdict in production — so there's no need for an HTTP cache that can
+// pin a wrong value for a day.
 const cacheHeaders = {
   "Cache-Control": "no-store"
 };
@@ -75,6 +67,65 @@ function colorSignal(hex: string): number {
   const brightness = (r + g + b) / 3;
   if (brightness < 45 || brightness > 225 || saturation < 0.25) return 0;
   return saturation * (1 - Math.abs(brightness - 128) / 170);
+}
+
+function saturationOf(hex: string): number {
+  const [r, g, b] = rgbFromHex(hex);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  return max === 0 ? 0 : (max - min) / max;
+}
+
+// Black / white / grey. The structural definition of "monochrome" — a brand whose
+// strongest signal is one of these has no brand color (Palantir's wordmark).
+function isMonoHex(hex: string): boolean {
+  return saturationOf(hex) < 0.15;
+}
+
+// Parse a raw CSS/SVG color token to #rrggbb, KEEPING black/white (callers that need
+// to detect monochrome can't have those silently dropped). Hex (#rgb/#rrggbb[aa]) and
+// rgb()/rgba() only — hsl()/named colors fall through to null.
+function parseRawColor(value: string): string | null {
+  const hex = value.match(/#[0-9a-f]{3,8}\b/i)?.[0];
+  if (hex) {
+    let color = hex;
+    if (/^#[0-9a-f]{3}$/i.test(color)) color = "#" + [...color.slice(1)].map((c) => c + c).join("");
+    if (!/^#[0-9a-f]{6,8}$/i.test(color)) return null;
+    return color.slice(0, 7).toLowerCase();
+  }
+  const rgb = value.match(/rgba?\(\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})/i);
+  if (rgb) {
+    const [r, g, b] = [rgb[1], rgb[2], rgb[3]].map(Number);
+    if ([r, g, b].some((n) => n > 255)) return null;
+    return hexFromRgb(r, g, b);
+  }
+  return null;
+}
+
+// Like parseRawColor, but drops generic white/black (used for *declared brand* values
+// where pure black/white is never the intended accent).
+function parseBrandColor(value: string): string | null {
+  const raw = parseRawColor(value);
+  return raw ? cleanHex(raw) : null;
+}
+
+function mostSaturated(colors: string[]): string | null {
+  let best: string | null = null;
+  let bestSat = -1;
+  for (const color of colors) {
+    const sat = saturationOf(color);
+    if (sat > bestSat) {
+      bestSat = sat;
+      best = color;
+    }
+  }
+  return best;
+}
+
+function colorClose(a: string, b: string): boolean {
+  const [r1, g1, b1] = rgbFromHex(a);
+  const [r2, g2, b2] = rgbFromHex(b);
+  return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) < 64;
 }
 
 function extractTextAccent(text: string): string | null {
@@ -296,12 +347,61 @@ function stylesheetUrls(html: string, baseUrl: string): string[] {
       // Ignore malformed stylesheet references.
     }
   }
-  return urls.slice(0, 8);
+  // No count cap (a count cap of 8 once truncated RTX's brand sheet and flipped it to
+  // cyan). The total-bytes budget in `fetchAllCss` is the real limit; 40 just stops a
+  // pathological page with hundreds of <link>s from spawning hundreds of fetches.
+  return urls.slice(0, 40);
 }
 
-async function fetchCssAccent(html: string, baseUrl: string): Promise<string | null> {
-  let stylesheetText = "";
+// Source 5b — frequency-weighted dominant color across the site's OWN JS bundles. Last
+// resort for client-rendered SPAs whose brand color is baked into JS rather than the
+// HTML/CSS/manifest (Hyperliquid's turquoise lives only here — its manifest is black).
+// Same-origin only (never trust third-party/analytics JS); byte-budgeted.
+const jsByteBudget = 4_000_000;
+function sameOriginScripts(html: string, baseUrl: string): string[] {
+  let origin: string;
+  try {
+    origin = new URL(baseUrl).origin;
+  } catch {
+    return [];
+  }
+  const urls: string[] = [];
+  for (const match of html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+\.js[^"'?]*)/gi)) {
+    try {
+      const url = new URL(match[1], baseUrl);
+      if (url.origin === origin) urls.push(url.toString());
+    } catch {
+      // Ignore malformed script references.
+    }
+  }
+  return Array.from(new Set(urls)).slice(0, 4);
+}
+
+async function fetchJsBundleColor(html: string, baseUrl: string): Promise<string | null> {
+  let text = "";
+  for (const scriptUrl of sameOriginScripts(html, baseUrl)) {
+    if (text.length >= jsByteBudget) break;
+    try {
+      const response = await fetch(scriptUrl, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": browserUa }
+      });
+      if (!response.ok) continue;
+      text += "\n" + (await response.text());
+    } catch {
+      // Try the next bundle.
+    }
+  }
+  return extractTextAccent(text.slice(0, jsByteBudget));
+}
+
+// Pull every same-origin stylesheet up to the byte budget, concatenated. Source for
+// both the named-brand-var signal and the frequency-weighted dominant signal.
+async function fetchAllCss(html: string, baseUrl: string): Promise<string> {
+  let text = "";
   for (const stylesheetUrl of stylesheetUrls(html, baseUrl)) {
+    if (text.length >= cssByteBudget) break;
     try {
       const stylesheet = await fetch(stylesheetUrl, {
         redirect: "follow",
@@ -309,17 +409,118 @@ async function fetchCssAccent(html: string, baseUrl: string): Promise<string | n
         headers: { "User-Agent": browserUa, Accept: "text/css" }
       });
       if (!stylesheet.ok) continue;
-      stylesheetText += "\n" + (await stylesheet.text());
+      text += "\n" + (await stylesheet.text());
     } catch {
       // Try the next stylesheet.
     }
   }
-  return extractTextAccent(stylesheetText);
+  return text.slice(0, cssByteBudget);
 }
 
-function isExplicitMonochromeBrandPage(html: string): boolean {
-  const lower = html.toLowerCase();
-  return lower.includes("logo on black") || lower.includes("logo on white");
+// Source 1 — web-app manifest `theme_color` (then `background_color`). PWAs/SPAs declare
+// their brand color here even when the server HTML is an empty shell; this is how a
+// client-rendered site like Hyperliquid is resolved without any markup signal.
+async function fetchManifestColor(html: string, baseUrl: string): Promise<string | null> {
+  const urls: string[] = [];
+  const linkTag = html.match(/<link\b[^>]*rel=["'][^"']*manifest[^"']*["'][^>]*>/i)?.[0];
+  const linkHref = linkTag?.match(/\bhref=["']([^"']+)["']/i)?.[1];
+  for (const candidate of [linkHref, "/manifest.json", "/site.webmanifest"]) {
+    if (!candidate) continue;
+    try {
+      urls.push(new URL(candidate, baseUrl).toString());
+    } catch {
+      // Ignore malformed manifest references.
+    }
+  }
+
+  for (const url of Array.from(new Set(urls))) {
+    try {
+      const response = await fetch(url, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(5000),
+        headers: { "User-Agent": browserUa, Accept: "application/manifest+json, application/json" }
+      });
+      if (!response.ok) continue;
+      const manifest = (await response.json()) as { theme_color?: string; background_color?: string };
+      for (const raw of [manifest.theme_color, manifest.background_color]) {
+        const color = raw ? parseBrandColor(raw) : null;
+        if (color && !isMonoHex(color)) return color;
+      }
+    } catch {
+      // Not JSON, missing, or timed out — try the next manifest URL.
+    }
+  }
+  return null;
+}
+
+// Source 3 — a CSS custom property literally named for the brand. A var named `--brand`
+// is a declared signal worth far more than an incidental accent. Most saturated wins.
+const brandVarPattern = /--(?:brand|color-brand|color-primary|primary|accent)(?:-[a-z0-9]+)?\s*:\s*([^;{}]+)[;}]/gi;
+function extractBrandVarColor(css: string): string | null {
+  const candidates: string[] = [];
+  for (const match of css.matchAll(brandVarPattern)) {
+    const color = parseBrandColor(match[1]);
+    if (color && !isMonoHex(color) && colorSignal(color) > 0) candidates.push(color);
+  }
+  return mostSaturated(candidates);
+}
+
+// Source 4 — the brand's SVG logo. SVG logos carry the EXACT brand hex, and a logo whose
+// only fills are black/white/grey is the structural definition of a monochrome brand
+// (this replaces the old "logo on black" string hack and is how Palantir resolves null).
+function extractSvgColors(svg: string): string[] {
+  const out: string[] = [];
+  for (const match of svg.matchAll(/(?:fill|stroke|stop-color)\s*[=:]\s*["']?\s*(#[0-9a-f]{3,8}\b|rgba?\([^)]+\))/gi)) {
+    const color = parseRawColor(match[1]); // keep black/white so mono logos are detectable
+    if (color) out.push(color);
+  }
+  return out;
+}
+
+async function fetchSvgLogoColor(html: string, baseUrl: string): Promise<{ color: string | null; mono: boolean } | null> {
+  const hrefs: string[] = [];
+  for (const link of html.matchAll(/<link\b[^>]*>/gi)) {
+    const tag = link[0];
+    if (!/rel=["'][^"']*icon[^"']*["']/i.test(tag)) continue;
+    const href = tag.match(/\bhref=["']([^"']+\.svg[^"'?]*)/i)?.[1];
+    if (href) hrefs.push(href);
+  }
+  for (const img of html.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = img[0];
+    const src = tag.match(/\bsrc=["']([^"']+\.svg[^"'?]*)/i)?.[1];
+    if (src && (/logo/i.test(tag) || /logo/i.test(src))) hrefs.push(src);
+  }
+
+  const urls: string[] = [];
+  for (const href of hrefs) {
+    try {
+      urls.push(new URL(href, baseUrl).toString());
+    } catch {
+      // Ignore malformed logo references.
+    }
+  }
+
+  for (const url of Array.from(new Set(urls)).slice(0, 3)) {
+    try {
+      const response = await fetch(url, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(5000),
+        headers: { "User-Agent": browserUa, Accept: "image/svg+xml" }
+      });
+      if (!response.ok) continue;
+      const contentType = response.headers.get("content-type") ?? "";
+      const text = await response.text();
+      if (!contentType.includes("svg") && !text.includes("<svg")) continue;
+      const colors = extractSvgColors(text);
+      if (colors.length === 0) continue; // inconclusive (e.g. currentColor) — try next
+      const nonMono = colors.filter((color) => !isMonoHex(color));
+      if (nonMono.length === 0) return { color: null, mono: true };
+      return { color: mostSaturated(nonMono), mono: false };
+    } catch {
+      // Try the next logo source.
+    }
+  }
+  return null;
 }
 
 async function fetchLogoAccent(domain: string): Promise<string | null> {
@@ -358,9 +559,6 @@ export async function GET(request: Request) {
   if (!company) return colorResponse(null);
 
   try {
-    const override = lookupOverride(company);
-    if (override.hit) return colorResponse(override.color);
-
     const cacheKey = ticker ? `${ticker}:${company}` : company;
     const cached = await getBrandColor(cacheKey);
     if (cached !== undefined) return colorResponse(cached);
@@ -373,21 +571,61 @@ export async function GET(request: Request) {
   }
 }
 
+type Signal = { color: string; confidence: number };
+
+// Gather every signal that fires, rank by source authority (confidence), and take the
+// strongest. Below the floor, a lone signal is discarded in favor of the neutral theme
+// accent — a wrong vivid color is more jarring than no color. Monochrome brands resolve
+// to null up front via their SVG logo. Zero hardcoded colors, no override table.
 async function resolveColor(company: string, ticker?: string): Promise<string | null> {
   const domain = await resolveDomain(company, ticker);
   if (!domain) return null;
-
-  // Read the company's own page first: declared colors (inline styles, theme-color,
-  // stylesheet accents) beat guessing pixels off a favicon. A monochrome brand page
-  // (white/black wordmark) is a hard stop — never fall through to pixel-guessing,
-  // which is what wrongly returned red for Palantir.
   const page = await fetchHomepage(domain);
-  if (page) {
-    if (isExplicitMonochromeBrandPage(page.html)) return null;
-    const declared = extractTextAccent(page.html) ?? themeColor(page.html) ?? (await fetchCssAccent(page.html, page.baseUrl));
-    if (declared) return declared;
+  if (!page) return null;
+
+  const signals: Signal[] = [];
+
+  // Source 4 — SVG logo. Authoritative, and the only structural test for monochrome.
+  const svg = await fetchSvgLogoColor(page.html, page.baseUrl);
+  if (svg?.mono) return null; // monochrome wordmark → theme accent (Palantir)
+  if (svg?.color) signals.push({ color: svg.color, confidence: 0.85 });
+
+  // Source 1 — web-app manifest (solves client-rendered SPAs like Hyperliquid).
+  const manifest = await fetchManifestColor(page.html, page.baseUrl);
+  if (manifest) signals.push({ color: manifest, confidence: 0.95 });
+
+  // Source 2 — theme-color meta tag.
+  const theme = themeColor(page.html);
+  if (theme) signals.push({ color: theme, confidence: 0.9 });
+
+  // Sources 3 & 5 — named brand CSS vars and frequency-weighted dominant, from ALL
+  // stylesheets (RTX's red lives in the 6th sheet and wins on 197× occurrences).
+  const css = await fetchAllCss(page.html, page.baseUrl);
+  const brandVar = extractBrandVarColor(css);
+  if (brandVar) signals.push({ color: brandVar, confidence: 0.85 });
+  const dominant = extractTextAccent(page.html + "\n" + css);
+  if (dominant) signals.push({ color: dominant, confidence: 0.6 });
+
+  // Source 5b — JS bundles. Gated to fire only when no stronger signal surfaced, so a
+  // client-rendered SPA (Hyperliquid) still yields its brand color without ever
+  // overriding a real CSS/manifest/SVG signal on a normal site.
+  if (!signals.some((signal) => signal.confidence >= 0.6)) {
+    const jsColor = await fetchJsBundleColor(page.html, page.baseUrl);
+    if (jsColor) signals.push({ color: jsColor, confidence: 0.55 });
   }
 
-  // Last resort for sites that declare no usable color in markup or CSS.
-  return fetchLogoAccent(domain);
+  // Source 6 — favicon pixels. Absolute last resort, and (via the floor below) never
+  // decisive on its own — this is what once returned red for Palantir's favicon.
+  if (!signals.some((signal) => signal.confidence >= 0.55)) {
+    const favicon = await fetchLogoAccent(domain);
+    if (favicon) signals.push({ color: favicon, confidence: 0.4 });
+  }
+
+  if (signals.length === 0) return null;
+  signals.sort((a, b) => b.confidence - a.confidence);
+  const best = signals[0];
+  if (best.confidence < 0.55 && !signals.some((s) => s !== best && colorClose(s.color, best.color))) {
+    return null; // weak and uncorroborated → neutral accent
+  }
+  return best.color;
 }

@@ -4,20 +4,20 @@ import { capitalizeFirst } from "@/lib/format";
 import { getWatchlist, setWatchlist } from "@/lib/kv";
 
 const addSchema = z.object({
-  ticker: z.string().min(1).transform((v) => v.toUpperCase()),
-  company: z.string().min(1),
-  theme: z.string().min(1),
-  conditions: z.array(z.string()),
-  conviction: z.string().min(1),
-  status: z.string().min(1)
+  ticker: z.string().min(1).max(20).transform((v) => v.toUpperCase()),
+  company: z.string().min(1).max(200),
+  theme: z.string().min(1).max(100),
+  conditions: z.array(z.string().max(500)).max(50),
+  conviction: z.string().min(1).max(50),
+  status: z.string().min(1).max(50)
 });
 
 // Partial update of an existing entry (detail-view editing). Identity is the
 // ticker; only the supplied fields change.
 const updateSchema = z.object({
-  ticker: z.string().min(1).transform((v) => v.toUpperCase()),
-  theme: z.string().min(1).optional(),
-  conditions: z.array(z.string()).optional(),
+  ticker: z.string().min(1).max(20).transform((v) => v.toUpperCase()),
+  theme: z.string().min(1).max(100).optional(),
+  conditions: z.array(z.string().max(500)).max(50).optional(),
   conviction: z.enum(["draft", "medium", "high"]).optional(),
   status: z.enum(["watching", "triggered", "invalidated"]).optional()
 });
