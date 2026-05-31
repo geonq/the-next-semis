@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { MAX_SEARCH_QUERY } from "@/lib/market";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
-  if (!q || q.length < 1) return NextResponse.json([]);
+  if (!q || q.length < 1 || q.length > MAX_SEARCH_QUERY) return NextResponse.json([]);
 
   try {
     const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=6&newsCount=0`;

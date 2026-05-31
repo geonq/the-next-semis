@@ -3,6 +3,19 @@ import type { Candle, NewsItem, Quote, QuotesByTicker } from "./types";
 
 const yahooBase = "https://query1.finance.yahoo.com";
 
+// Public read APIs are unauthenticated. Validate ticker shape and clamp counts at the
+// route boundary so a crafted request can't fan out into unbounded Yahoo fetches on a
+// free Vercel deploy. Yahoo symbols use letters/digits plus `.` (RHM.DE), `-` (BRK-B),
+// `=` (EURUSD=X), `^` (^GSPC).
+const tickerPattern = /^[A-Z0-9.\-=^]{1,20}$/;
+export function isValidTicker(symbol: string): boolean {
+  return tickerPattern.test(symbol);
+}
+export const MAX_QUOTE_SYMBOLS = 60;
+export const MAX_SEARCH_QUERY = 64;
+// Allowlist of Yahoo chart ranges we actually request; anything else falls back to 10y.
+export const historyRanges = new Set(["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"]);
+
 const quoteResultSchema = z.object({
   symbol: z.string(),
   regularMarketPrice: z.number().nullable().optional(),
