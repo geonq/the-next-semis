@@ -3,10 +3,19 @@ import { z } from "zod";
 import { capitalizeFirst } from "@/lib/format";
 import { getSavedItems, setSavedItems } from "@/lib/kv";
 
+const httpUrlSchema = z.string().url().max(2000).refine((value) => {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "https:" || protocol === "http:";
+  } catch {
+    return false;
+  }
+});
+
 const addSchema = z.object({
   type: z.enum(["article", "paper"]),
   title: z.string().min(1).max(500),
-  url: z.string().url().max(2000),
+  url: httpUrlSchema,
   note: z.string().max(5000).optional(),
   theme: z.string().max(100).optional(),
   tickers: z.array(z.string().max(20)).max(50).optional()
@@ -18,7 +27,7 @@ const editSchema = z.object({
   id: z.string().min(1).max(100),
   type: z.enum(["article", "paper"]),
   title: z.string().min(1).max(500),
-  url: z.string().url().max(2000),
+  url: httpUrlSchema,
   note: z.string().max(5000).optional(),
   theme: z.string().max(100).optional()
 });

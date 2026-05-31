@@ -31,6 +31,13 @@ type DomainSuggestion = {
   name?: string;
 };
 
+type ColorCandidate = {
+  color: string;
+  score: number;
+  occurrences: number;
+  runnerUpScore: number;
+};
+
 function cleanHex(value: string | undefined): string | null {
   if (!value) return null;
   let color = value.trim();
@@ -128,25 +135,34 @@ function colorClose(a: string, b: string): boolean {
   return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) < 64;
 }
 
-function extractTextAccent(text: string): string | null {
-  const scores = new Map<string, number>();
+function extractTextAccent(text: string): ColorCandidate | null {
+  const scores = new Map<string, { score: number; occurrences: number }>();
   for (const match of text.match(/#[0-9a-f]{3,8}\b/gi) ?? []) {
     const color = cleanHex(match);
     if (!color) continue;
     const signal = colorSignal(color);
     if (!signal) continue;
-    scores.set(color, (scores.get(color) ?? 0) + signal);
+    const current = scores.get(color) ?? { score: 0, occurrences: 0 };
+    current.score += signal;
+    current.occurrences += 1;
+    scores.set(color, current);
   }
 
   let best: string | null = null;
   let bestScore = 0;
-  for (const [color, score] of scores) {
+  let bestOccurrences = 0;
+  let runnerUpScore = 0;
+  for (const [color, { score, occurrences }] of scores) {
     if (score > bestScore) {
+      runnerUpScore = bestScore;
       best = color;
       bestScore = score;
+      bestOccurrences = occurrences;
+    } else if (score > runnerUpScore) {
+      runnerUpScore = score;
     }
   }
-  return best;
+  return best ? { color: best, score: bestScore, occurrences: bestOccurrences, runnerUpScore } : null;
 }
 
 function paethPredictor(left: number, above: number, upperLeft: number): number {
@@ -316,18 +332,48 @@ function scoreDomainSuggestion(suggestion: DomainSuggestion, ticker: string, com
   return score;
 }
 
+// A legacy `<meta http-equiv="refresh" content="0; url=...">` redirect. `fetch` follows
+// HTTP 3xx redirects but never this HTML-level one, so a stub page that meta-refreshes
+// elsewhere would otherwise be read as the real site. (lmco.com — what Clearbit returns
+// for Lockheed — is a 135-byte stub that meta-refreshes to lockheedmartin.com.) Returns
+// the absolute destination only when it actually points somewhere else.
+function metaRefreshTarget(html: string, baseUrl: string): string | null {
+  const meta =
+    html.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]*content=["']([^"']+)["']/i) ??
+    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*http-equiv=["']?refresh["']?/i);
+  const target = meta?.[1].match(/url\s*=\s*['"]?([^'";]+)/i)?.[1]?.trim();
+  if (!target) return null;
+  try {
+    const resolved = new URL(target, baseUrl).toString();
+    return resolved === baseUrl ? null : resolved;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchHomepage(domain: string): Promise<{ html: string; baseUrl: string } | null> {
-  for (const url of [`https://www.${domain}`, `https://${domain}`]) {
-    try {
-      const response = await fetch(url, {
-        redirect: "follow",
-        signal: AbortSignal.timeout(8000),
-        headers: { "User-Agent": browserUa }
-      });
-      if (!response.ok) continue;
-      return { html: await response.text(), baseUrl: response.url || url };
-    } catch {
-      // Try the next host form.
+  for (const start of [`https://www.${domain}`, `https://${domain}`]) {
+    let url = start;
+    // Follow up to 3 meta-refresh hops to land on the real site (loop-guarded).
+    for (let hop = 0; hop < 3; hop += 1) {
+      let page: { html: string; baseUrl: string };
+      try {
+        const response = await fetch(url, {
+          redirect: "follow",
+          signal: AbortSignal.timeout(8000),
+          headers: { "User-Agent": browserUa }
+        });
+        if (!response.ok) break; // try the next host form
+        page = { html: await response.text(), baseUrl: response.url || url };
+      } catch {
+        break; // try the next host form
+      }
+      const next = metaRefreshTarget(page.html, page.baseUrl);
+      if (next && next !== url) {
+        url = next;
+        continue;
+      }
+      return page;
     }
   }
   return null;
@@ -351,6 +397,11 @@ function stylesheetUrls(html: string, baseUrl: string): string[] {
   // cyan). The total-bytes budget in `fetchAllCss` is the real limit; 40 just stops a
   // pathological page with hundreds of <link>s from spawning hundreds of fetches.
   return urls.slice(0, 40);
+}
+
+function isStrongStatisticalSignal(candidate: ColorCandidate): boolean {
+  const dominance = candidate.runnerUpScore === 0 ? Number.POSITIVE_INFINITY : candidate.score / candidate.runnerUpScore;
+  return candidate.occurrences >= 4 && candidate.score >= 2.5 && dominance >= 1.35;
 }
 
 // Source 5b — frequency-weighted dominant color across the site's OWN JS bundles. Last
@@ -377,7 +428,7 @@ function sameOriginScripts(html: string, baseUrl: string): string[] {
   return Array.from(new Set(urls)).slice(0, 4);
 }
 
-async function fetchJsBundleColor(html: string, baseUrl: string): Promise<string | null> {
+async function fetchJsBundleColor(html: string, baseUrl: string): Promise<ColorCandidate | null> {
   let text = "";
   for (const scriptUrl of sameOriginScripts(html, baseUrl)) {
     if (text.length >= jsByteBudget) break;
@@ -453,9 +504,10 @@ async function fetchManifestColor(html: string, baseUrl: string): Promise<string
   return null;
 }
 
-// Source 3 — a CSS custom property literally named for the brand. A var named `--brand`
-// is a declared signal worth far more than an incidental accent. Most saturated wins.
-const brandVarPattern = /--(?:brand|color-brand|color-primary|primary|accent)(?:-[a-z0-9]+)?\s*:\s*([^;{}]+)[;}]/gi;
+// Source 3 — a CSS custom property literally named for the brand. Generic tokens like
+// `--primary` / `--accent` are not authoritative enough: many sites use them for
+// arbitrary UI link colors, which is how a monochrome brand can get a fake blue accent.
+const brandVarPattern = /--(?:brand|color-brand)(?:-[a-z0-9]+)?\s*:\s*([^;{}]+)[;}]/gi;
 function extractBrandVarColor(css: string): string | null {
   const candidates: string[] = [];
   for (const match of css.matchAll(brandVarPattern)) {
@@ -557,6 +609,9 @@ export async function GET(request: Request) {
   const company = searchParams.get("company")?.trim();
   const ticker = searchParams.get("ticker")?.trim().toUpperCase();
   if (!company) return colorResponse(null);
+  if (company.length > 200 || (ticker && !/^[A-Z0-9.-]{1,20}$/.test(ticker))) {
+    return colorResponse(null);
+  }
 
   try {
     const cacheKey = ticker ? `${ticker}:${company}` : company;
@@ -604,14 +659,18 @@ async function resolveColor(company: string, ticker?: string): Promise<string | 
   const brandVar = extractBrandVarColor(css);
   if (brandVar) signals.push({ color: brandVar, confidence: 0.85 });
   const dominant = extractTextAccent(page.html + "\n" + css);
-  if (dominant) signals.push({ color: dominant, confidence: 0.6 });
+  if (dominant && isStrongStatisticalSignal(dominant)) {
+    signals.push({ color: dominant.color, confidence: 0.6 });
+  }
 
   // Source 5b — JS bundles. Gated to fire only when no stronger signal surfaced, so a
   // client-rendered SPA (Hyperliquid) still yields its brand color without ever
   // overriding a real CSS/manifest/SVG signal on a normal site.
   if (!signals.some((signal) => signal.confidence >= 0.6)) {
     const jsColor = await fetchJsBundleColor(page.html, page.baseUrl);
-    if (jsColor) signals.push({ color: jsColor, confidence: 0.55 });
+    if (jsColor) {
+      signals.push({ color: jsColor.color, confidence: 0.55 });
+    }
   }
 
   // Source 6 — favicon pixels. Absolute last resort, and (via the floor below) never
