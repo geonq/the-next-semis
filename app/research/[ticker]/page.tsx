@@ -5,6 +5,7 @@ import { BrandTicker } from "@/components/brand-ticker";
 import { NewsPanel } from "@/components/news-panel";
 import { PriceChart } from "@/components/price-chart";
 import { ReadingList } from "@/components/reading-list";
+import { TickerStateEditor } from "@/components/ticker-state-editor";
 import { verifySession } from "@/lib/auth";
 import { capitalizeFirst, fmtAbs, fmtSignedPct, fmtSignedUsd, signClass } from "@/lib/format";
 import { getSavedItems, getWatchlist } from "@/lib/kv";
@@ -60,33 +61,19 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
 
       <PriceChart history={history} ticker={ticker} company={entry.company} />
 
-      <section className="detail-grid">
-        <div>
-          <p className="section-label">Status</p>
-          <div>
-            <span className={convictionClass(entry.conviction)}>{entry.conviction}</span>
-            <span className="dot">·</span>
-            <span className={statusClass(entry.status)}>{entry.status}</span>
-          </div>
-        </div>
-
-        <div>
-          <p className="section-label">Entry Conditions</p>
-          <ul className="conditions">
-            {entry.conditions.map((condition) => (
-              <li className="condition" key={condition}>
-                <span className="muted">-</span>
-                {condition}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
+      <TickerStateEditor
+        ticker={ticker}
+        conviction={entry.conviction}
+        status={entry.status}
+        conditions={entry.conditions}
+        isAdmin={isAdmin}
+      />
 
       <ReadingList
         items={savedItems.filter((item) => item.tickers.includes(ticker))}
         allItems={savedItems}
         ticker={ticker}
+        defaultTheme={entry.theme}
         isAdmin={isAdmin}
         themes={themes(entries)}
       />
@@ -94,16 +81,4 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
       <NewsPanel ticker={ticker} />
     </div>
   );
-}
-
-function convictionClass(value: string): string {
-  if (value === "high") return "gain";
-  if (value === "medium") return "accent";
-  return "neutral";
-}
-
-function statusClass(value: string): string {
-  if (value === "triggered") return "gain";
-  if (value === "invalidated") return "loss";
-  return "neutral";
 }

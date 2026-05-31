@@ -25,18 +25,21 @@ export function ReadingList({
   items,
   allItems,
   ticker,
+  defaultTheme,
   isAdmin,
   themes
 }: {
   items: SavedItem[];
   allItems?: SavedItem[];
   ticker?: string;
+  defaultTheme?: string;
   isAdmin: boolean;
   themes: string[];
 }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [type, setType] = useState("All");
   const [theme, setTheme] = useState("All");
   const [visibleCount, setVisibleCount] = useState(10);
@@ -136,6 +139,7 @@ export function ReadingList({
         <SaveForm
           themes={themes}
           ticker={ticker}
+          defaultTheme={defaultTheme}
           onSaved={() => {
             setShowForm(false);
             router.refresh();
@@ -149,40 +153,63 @@ export function ReadingList({
       ) : (
         <>
           <div className="reading-list">
-            {visibleItems.map((item) => (
-              <div className="reading-item" key={item.id}>
-                <div className="reading-item-left">
-                  <div className="reading-item-top">
-                    <span className={`reading-badge ${item.type}`}>{item.type}</span>
-                    <a className="reading-title" href={item.url} target="_blank" rel="noopener noreferrer">
-                      {item.title}
-                    </a>
+            {visibleItems.map((item) =>
+              isAdmin && editingId === item.id ? (
+                <SaveForm
+                  key={item.id}
+                  themes={themes}
+                  editItem={item}
+                  onSaved={() => {
+                    setEditingId(null);
+                    router.refresh();
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <div className="reading-item" key={item.id}>
+                  <div className="reading-item-left">
+                    <div className="reading-item-top">
+                      <span className={`reading-badge ${item.type}`}>{item.type}</span>
+                      <a className="reading-title" href={item.url} target="_blank" rel="noopener noreferrer">
+                        {item.title}
+                      </a>
+                    </div>
+                    {item.note ? <p className="reading-note">{item.note}</p> : null}
+                    {item.theme ? <p className="reading-note">{capitalizeFirst(item.theme)}</p> : null}
                   </div>
-                  {item.note ? <p className="reading-note">{item.note}</p> : null}
-                  {item.theme ? <p className="reading-note">{capitalizeFirst(item.theme)}</p> : null}
+                  <div className="reading-item-right">
+                    <span>{domain(item.url)}</span>
+                    <span className="dot">·</span>
+                    <span>{relativeTime(item.addedAt)}</span>
+                    {isAdmin ? (
+                      <button
+                        className="reading-delete"
+                        onClick={() => setEditingId(item.id)}
+                        type="button"
+                        aria-label="Edit"
+                      >
+                        ✎
+                      </button>
+                    ) : null}
+                    {isAdmin && ticker ? (
+                      <button
+                        className="reading-delete"
+                        onClick={() => patchItem(item.id, "detach")}
+                        type="button"
+                        aria-label={`Remove from ${ticker}`}
+                      >
+                        ↩
+                      </button>
+                    ) : null}
+                    {isAdmin ? (
+                      <button className="reading-delete" onClick={() => deleteItem(item.id)} type="button" aria-label="Delete">
+                        ✕
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="reading-item-right">
-                  <span>{domain(item.url)}</span>
-                  <span className="dot">·</span>
-                  <span>{relativeTime(item.addedAt)}</span>
-                  {isAdmin && ticker ? (
-                    <button
-                      className="reading-delete"
-                      onClick={() => patchItem(item.id, "detach")}
-                      type="button"
-                      aria-label={`Remove from ${ticker}`}
-                    >
-                      ↩
-                    </button>
-                  ) : null}
-                  {isAdmin ? (
-                    <button className="reading-delete" onClick={() => deleteItem(item.id)} type="button" aria-label="Delete">
-                      ✕
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ))}
+              )
+            )}
           </div>
           {visibleItems.length < filteredItems.length ? (
             <button className="reading-more" onClick={() => setVisibleCount((count) => count + 10)} type="button">
@@ -198,19 +225,23 @@ export function ReadingList({
 function SaveForm({
   themes,
   ticker,
+  defaultTheme,
+  editItem,
   onSaved,
   onCancel
 }: {
   themes: string[];
   ticker?: string;
+  defaultTheme?: string;
+  editItem?: SavedItem;
   onSaved: () => void;
   onCancel: () => void;
 }) {
-  const [type, setType] = useState<"article" | "paper">("article");
-  const [url, setUrl] = useState("");
-  const [title, setTitle] = useState("");
-  const [note, setNote] = useState("");
-  const [theme, setTheme] = useState("");
+  const [type, setType] = useState<"article" | "paper">(editItem?.type ?? "article");
+  const [url, setUrl] = useState(editItem?.url ?? "");
+  const [title, setTitle] = useState(editItem?.title ?? "");
+  const [note, setNote] = useState(editItem?.note ?? "");
+  const [theme, setTheme] = useState(editItem?.theme ?? defaultTheme ?? "");
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState("");
 
@@ -232,18 +263,31 @@ function SaveForm({
     e.preventDefault();
     setError("");
 
-    const res = await fetch("/api/saved-items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type,
-        url,
-        title,
-        note: note || undefined,
-        theme: theme || undefined,
-        tickers: ticker ? [ticker] : []
-      })
-    });
+    const res = editItem
+      ? await fetch("/api/saved-items", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editItem.id,
+            type,
+            url,
+            title,
+            note: note || undefined,
+            theme: theme || undefined
+          })
+        })
+      : await fetch("/api/saved-items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type,
+            url,
+            title,
+            note: note || undefined,
+            theme: theme || undefined,
+            tickers: ticker ? [ticker] : []
+          })
+        });
 
     if (res.ok) {
       onSaved();

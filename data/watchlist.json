@@ -4,9 +4,9 @@
     "company": "Hyperliquid Strategies Inc",
     "theme": "Decentralized Exchange",
     "conditions": [
-      "- hello",
-      "- this a test fr",
-      "- hyperchain go brr"
+      "hello",
+      "this a test fr",
+      "hyperchain go brr"
     ],
     "conviction": "draft",
     "status": "watching"
@@ -68,6 +68,67 @@
     "theme": "Defense",
     "conditions": [],
     "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "PFE",
+    "company": "Pfizer, Inc.",
+    "theme": "Big Pharma",
+    "conditions": [
+      "evil microchip corp"
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "CRSP",
+    "company": "CRISPR Therapeutics AG",
+    "theme": "Big Pharma",
+    "conditions": [
+      "gene editing"
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "META",
+    "company": "Meta Platforms, Inc.",
+    "theme": "Big Pharma",
+    "conditions": [
+      "ig and facebook are cool, but",
+      "these mfs tryna do neuralink shi"
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "TSLA",
+    "company": "Tesla, Inc.",
+    "theme": "Energy Storage",
+    "conditions": [
+      "car batteries may turn into power grids"
+    ],
+    "conviction": "draft",
+    "status": "watching"
+  },
+  {
+    "ticker": "1211.HK",
+    "company": "BYD COMPANY",
+    "theme": "Energy Storage",
+    "conditions": [
+      "just like tesla"
+    ],
+    "conviction": "medium",
+    "status": "watching"
+  },
+  {
+    "ticker": "FLNC",
+    "company": "Fluence Energy, Inc.",
+    "theme": "Energy Storage",
+    "conditions": [
+      "interesting"
+    ],
+    "conviction": "high",
     "status": "watching"
   }
 ]

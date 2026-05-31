@@ -1073,6 +1073,18 @@ ol {
   color: var(--color-fg);
 }
 
+.detail-head {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.edit-state-row {
+  display: flex;
+  gap: 8px;
+}
+
 .thesis-edit {
   display: grid;
   gap: 12px;

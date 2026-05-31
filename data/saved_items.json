@@ -1,1 +1,49 @@
-[]
+[
+  {
+    "id": "a910586e-9fc5-41b9-8f01-cf84b9c09235",
+    "type": "article",
+    "title": "Computer Chips in Our Bodies Could Be the Future of Medicine",
+    "url": "https://time.com/7330887/brain-computer-chips-future-of-medicine/",
+    "theme": "Big Pharma",
+    "tickers": [
+      "FLNC"
+    ],
+    "addedAt": 1780185738
+  },
+  {
+    "id": "a173a8f2-ec75-4db2-b909-f9187e990026",
+    "type": "article",
+    "title": "Cognitive Liberty In The Age Of Neurotechnology: A Legal And Ethical Exploration",
+    "url": "https://www.ijllr.com/post/cognitive-liberty-in-the-age-of-neurotechnology-a-legal-and-ethical-exploration",
+    "note": "ethical arguments about human engineering via robotics",
+    "theme": "Big Pharma",
+    "tickers": [
+      "FLNC"
+    ],
+    "addedAt": 1780185775
+  },
+  {
+    "id": "0dcc8c8b-60ea-427c-a350-30ddf92446e7",
+    "type": "article",
+    "title": "Data Center Solution Deploy Data Center Capacity Faster with Fluence Storage Solutions",
+    "url": "https://fluenceenergy.com/data-center-solution/",
+    "note": "idk man looks right",
+    "theme": "Energy Storage",
+    "tickers": [
+      "FLNC"
+    ],
+    "addedAt": 1780186884
+  },
+  {
+    "id": "797fb8bb-4af1-4aba-84f3-1a8c2946255d",
+    "type": "paper",
+    "title": "Analysis on BYD Current Development and Future Direction",
+    "url": "https://www.researchgate.net/publication/373896225_Analysis_on_BYD_Current_Development_and_Future_Direction",
+    "note": "byd analysis",
+    "theme": "Energy Storage",
+    "tickers": [
+      "1211.HK"
+    ],
+    "addedAt": 1780187143
+  }
+]
