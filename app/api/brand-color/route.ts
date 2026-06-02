@@ -38,12 +38,24 @@ const cacheHeaders = {
   "Cache-Control": "no-store"
 };
 
+// Vercel Hobby functions have a 10s hard limit. This global abort fires at 8.5s so we
+// can return a clean null before the platform kills the invocation. On timeout we skip
+// caching so the next request retries fresh.
+const GLOBAL_TIMEOUT_MS = 8500;
+
+// Combine a per-step timeout with the global abort so whichever fires first wins.
+function withTimeout(ms: number, globalSignal?: AbortSignal): AbortSignal {
+  return globalSignal
+    ? AbortSignal.any([globalSignal, AbortSignal.timeout(ms)])
+    : AbortSignal.timeout(ms);
+}
+
 type DomainSuggestion = {
   domain?: string;
   name?: string;
 };
 
-async function resolveDomain(company: string, ticker?: string): Promise<string | null> {
+async function resolveDomain(company: string, ticker?: string, globalSignal?: AbortSignal): Promise<string | null> {
   const normalizedTicker = normalizeToken(ticker ?? "");
   const companyTokens = company
     .replace(companySuffixPattern, "")
@@ -59,15 +71,20 @@ async function resolveDomain(company: string, ticker?: string): Promise<string |
     ].filter((query): query is string => Boolean(query)))
   );
 
+  // Run all Clearbit queries in parallel — sequential would burn most of the 10s budget.
+  const results = await Promise.allSettled(
+    queries.map((query) =>
+      fetch(
+        `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(query)}`,
+        { signal: withTimeout(4000, globalSignal), headers: { "User-Agent": browserUa } }
+      ).then((r) => (r.ok ? (r.json() as Promise<DomainSuggestion[]>) : Promise.resolve([] as DomainSuggestion[])))
+    )
+  );
+
   let best: { domain: string; name: string; score: number } | null = null;
-  for (const query of queries) {
-    const response = await fetch(
-      `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(query)}`,
-      { signal: AbortSignal.timeout(8000), headers: { "User-Agent": browserUa } }
-    );
-    if (!response.ok) continue;
-    const suggestions = (await response.json()) as DomainSuggestion[];
-    for (const suggestion of suggestions.slice(0, 5)) {
+  for (const result of results) {
+    if (result.status !== "fulfilled") continue;
+    for (const suggestion of result.value.slice(0, 5)) {
       if (!suggestion.domain) continue;
       const score = scoreDomainSuggestion(suggestion, normalizedTicker, companyTokens);
       if (score > 0 && (!best || score > best.score)) best = { domain: suggestion.domain, name: suggestion.name ?? "", score };
@@ -103,7 +120,7 @@ function scoreDomainSuggestion(suggestion: DomainSuggestion, ticker: string, com
   return score;
 }
 
-async function fetchHomepage(domain: string): Promise<{ html: string; baseUrl: string } | null> {
+async function fetchHomepage(domain: string, globalSignal?: AbortSignal): Promise<{ html: string; baseUrl: string } | null> {
   for (const start of [`https://www.${domain}`, `https://${domain}`]) {
     let url = start;
     // Follow up to 3 meta-refresh hops to land on the real site (loop-guarded).
@@ -112,7 +129,7 @@ async function fetchHomepage(domain: string): Promise<{ html: string; baseUrl: s
       try {
         const response = await fetch(url, {
           redirect: "follow",
-          signal: AbortSignal.timeout(8000),
+          signal: withTimeout(5000, globalSignal),
           headers: { "User-Agent": browserUa }
         });
         if (!response.ok) break; // try the next host form
@@ -136,14 +153,14 @@ async function fetchHomepage(domain: string): Promise<{ html: string; baseUrl: s
 // HTML/CSS/manifest (Hyperliquid's turquoise lives only here — its manifest is black).
 // Same-origin only (never trust third-party/analytics JS); byte-budgeted.
 const jsByteBudget = 4_000_000;
-async function fetchJsBundleColor(html: string, baseUrl: string): Promise<ColorCandidate | null> {
+async function fetchJsBundleColor(html: string, baseUrl: string, globalSignal?: AbortSignal): Promise<ColorCandidate | null> {
   let text = "";
   for (const scriptUrl of sameOriginScripts(html, baseUrl)) {
     if (text.length >= jsByteBudget) break;
     try {
       const response = await fetch(scriptUrl, {
         redirect: "follow",
-        signal: AbortSignal.timeout(8000),
+        signal: withTimeout(4000, globalSignal),
         headers: { "User-Agent": browserUa }
       });
       if (!response.ok) continue;
@@ -157,14 +174,14 @@ async function fetchJsBundleColor(html: string, baseUrl: string): Promise<ColorC
 
 // Pull every same-origin stylesheet up to the byte budget, concatenated. Source for
 // both the named-brand-var signal and the frequency-weighted dominant signal.
-async function fetchAllCss(html: string, baseUrl: string): Promise<string> {
+async function fetchAllCss(html: string, baseUrl: string, globalSignal?: AbortSignal): Promise<string> {
   let text = "";
   for (const stylesheetUrl of stylesheetUrls(html, baseUrl)) {
     if (text.length >= cssByteBudget) break;
     try {
       const stylesheet = await fetch(stylesheetUrl, {
         redirect: "follow",
-        signal: AbortSignal.timeout(5000),
+        signal: withTimeout(3000, globalSignal),
         headers: { "User-Agent": browserUa, Accept: "text/css" }
       });
       if (!stylesheet.ok) continue;
@@ -179,7 +196,7 @@ async function fetchAllCss(html: string, baseUrl: string): Promise<string> {
 // Source 1 — web-app manifest `theme_color` (then `background_color`). PWAs/SPAs declare
 // their brand color here even when the server HTML is an empty shell; this is how a
 // client-rendered site like Hyperliquid is resolved without any markup signal.
-async function fetchManifestColor(html: string, baseUrl: string): Promise<string | null> {
+async function fetchManifestColor(html: string, baseUrl: string, globalSignal?: AbortSignal): Promise<string | null> {
   const urls: string[] = [];
   const linkTag = html.match(/<link\b[^>]*rel=["'][^"']*manifest[^"']*["'][^>]*>/i)?.[0];
   const linkHref = linkTag?.match(/\bhref=["']([^"']+)["']/i)?.[1];
@@ -196,7 +213,7 @@ async function fetchManifestColor(html: string, baseUrl: string): Promise<string
     try {
       const response = await fetch(url, {
         redirect: "follow",
-        signal: AbortSignal.timeout(5000),
+        signal: withTimeout(3000, globalSignal),
         headers: { "User-Agent": browserUa, Accept: "application/manifest+json, application/json" }
       });
       if (!response.ok) continue;
@@ -212,7 +229,7 @@ async function fetchManifestColor(html: string, baseUrl: string): Promise<string
   return null;
 }
 
-async function fetchSvgLogoColor(html: string, baseUrl: string): Promise<{ color: string | null; mono: boolean } | null> {
+async function fetchSvgLogoColor(html: string, baseUrl: string, globalSignal?: AbortSignal): Promise<{ color: string | null; mono: boolean } | null> {
   const hrefs: string[] = [];
   for (const link of html.matchAll(/<link\b[^>]*>/gi)) {
     const tag = link[0];
@@ -239,7 +256,7 @@ async function fetchSvgLogoColor(html: string, baseUrl: string): Promise<{ color
     try {
       const response = await fetch(url, {
         redirect: "follow",
-        signal: AbortSignal.timeout(5000),
+        signal: withTimeout(3000, globalSignal),
         headers: { "User-Agent": browserUa, Accept: "image/svg+xml" }
       });
       if (!response.ok) continue;
@@ -258,7 +275,7 @@ async function fetchSvgLogoColor(html: string, baseUrl: string): Promise<{ color
   return null;
 }
 
-async function fetchLogoAccent(domain: string): Promise<string | null> {
+async function fetchLogoAccent(domain: string, globalSignal?: AbortSignal): Promise<string | null> {
   const logoUrls = [
     `https://logos.hunter.io/${domain}?format=png&size=128`,
     `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
@@ -268,7 +285,7 @@ async function fetchLogoAccent(domain: string): Promise<string | null> {
     try {
       const response = await fetch(url, {
         redirect: "follow",
-        signal: AbortSignal.timeout(8000),
+        signal: withTimeout(4000, globalSignal),
         headers: { "User-Agent": browserUa, Accept: "image/png" }
       });
       if (!response.ok) continue;
@@ -301,9 +318,23 @@ export async function GET(request: Request) {
     const cached = await getBrandColor(cacheKey);
     if (cached !== undefined) return colorResponse(cached);
 
-    const color = await resolveColor(company, ticker);
-    await setBrandColor(cacheKey, color);
-    return colorResponse(color);
+    // Global abort at 8.5s — Vercel Hobby kills the function at 10s. On timeout we
+    // return null WITHOUT caching so the next request retries the detection fresh.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GLOBAL_TIMEOUT_MS);
+    try {
+      const color = await resolveColor(company, ticker, controller.signal);
+      await setBrandColor(cacheKey, color);
+      return colorResponse(color);
+    } catch {
+      if (controller.signal.aborted) {
+        // Timed out — don't cache, let next request retry.
+        return colorResponse(null);
+      }
+      return colorResponse(null);
+    } finally {
+      clearTimeout(timer);
+    }
   } catch {
     return colorResponse(null);
   }
@@ -315,21 +346,21 @@ type Signal = { color: string; confidence: number };
 // strongest. Below the floor, a lone signal is discarded in favor of the neutral theme
 // accent — a wrong vivid color is more jarring than no color. Monochrome brands resolve
 // to null up front via their SVG logo. Zero hardcoded colors, no override table.
-async function resolveColor(company: string, ticker?: string): Promise<string | null> {
-  const domain = await resolveDomain(company, ticker);
+async function resolveColor(company: string, ticker?: string, globalSignal?: AbortSignal): Promise<string | null> {
+  const domain = await resolveDomain(company, ticker, globalSignal);
   if (!domain) return null;
-  const page = await fetchHomepage(domain);
+  const page = await fetchHomepage(domain, globalSignal);
   if (!page) return null;
 
   const signals: Signal[] = [];
 
   // Source 4 — SVG logo. Authoritative, and the only structural test for monochrome.
-  const svg = await fetchSvgLogoColor(page.html, page.baseUrl);
+  const svg = await fetchSvgLogoColor(page.html, page.baseUrl, globalSignal);
   if (svg?.mono) return null; // monochrome wordmark → theme accent (Palantir)
   if (svg?.color) signals.push({ color: svg.color, confidence: 0.85 });
 
   // Source 1 — web-app manifest (solves client-rendered SPAs like Hyperliquid).
-  const manifest = await fetchManifestColor(page.html, page.baseUrl);
+  const manifest = await fetchManifestColor(page.html, page.baseUrl, globalSignal);
   if (manifest) signals.push({ color: manifest, confidence: 0.95 });
 
   // Source 2 — theme-color meta tag.
@@ -338,7 +369,7 @@ async function resolveColor(company: string, ticker?: string): Promise<string | 
 
   // Sources 3 & 5 — named brand CSS vars and frequency-weighted dominant, from ALL
   // stylesheets (RTX's red lives in the 6th sheet and wins on 197× occurrences).
-  const css = await fetchAllCss(page.html, page.baseUrl);
+  const css = await fetchAllCss(page.html, page.baseUrl, globalSignal);
   const brandVar = extractBrandVarColor(css);
   if (brandVar) signals.push({ color: brandVar, confidence: 0.85 });
   const dominant = extractTextAccent(page.html + "\n" + css);
@@ -350,7 +381,7 @@ async function resolveColor(company: string, ticker?: string): Promise<string | 
   // client-rendered SPA (Hyperliquid) still yields its brand color without ever
   // overriding a real CSS/manifest/SVG signal on a normal site.
   if (!signals.some((signal) => signal.confidence >= 0.6)) {
-    const jsColor = await fetchJsBundleColor(page.html, page.baseUrl);
+    const jsColor = await fetchJsBundleColor(page.html, page.baseUrl, globalSignal);
     if (jsColor) {
       signals.push({ color: jsColor.color, confidence: 0.55 });
     }
@@ -359,7 +390,7 @@ async function resolveColor(company: string, ticker?: string): Promise<string | 
   // Source 6 — favicon pixels. Absolute last resort, and (via the floor below) never
   // decisive on its own — this is what once returned red for Palantir's favicon.
   if (!signals.some((signal) => signal.confidence >= 0.55)) {
-    const favicon = await fetchLogoAccent(domain);
+    const favicon = await fetchLogoAccent(domain, globalSignal);
     if (favicon) signals.push({ color: favicon, confidence: 0.4 });
   }
 
