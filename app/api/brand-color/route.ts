@@ -349,8 +349,13 @@ type Signal = { color: string; confidence: number };
 async function resolveColor(company: string, ticker?: string, globalSignal?: AbortSignal): Promise<string | null> {
   const domain = await resolveDomain(company, ticker, globalSignal);
   if (!domain) return null;
+
   const page = await fetchHomepage(domain, globalSignal);
-  if (!page) return null;
+  if (!page) {
+    // Homepage blocked or unreachable (e.g. tesla.com 403s server requests).
+    // Logo sources work independently — use as best-effort fallback.
+    return await fetchLogoAccent(domain, globalSignal);
+  }
 
   const signals: Signal[] = [];
 
