@@ -28,6 +28,24 @@ const refreshColorsSchema = z.object({
   force: z.boolean().optional().default(false)
 });
 
+async function resolveStoredBrandColor(request: Request, ticker: string, company: string): Promise<string | null> {
+  const direct = await fetchBrandfetchColor({ ticker });
+  if (direct) return direct;
+
+  try {
+    const url = new URL("/api/brand-color", request.url);
+    url.searchParams.set("ticker", ticker);
+    url.searchParams.set("company", company);
+    url.searchParams.set("_", String(Date.now()));
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { color?: unknown };
+    return typeof data.color === "string" && /^#[0-9a-f]{6}$/i.test(data.color) ? data.color : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const parsed = addSchema.safeParse(body);
@@ -37,7 +55,7 @@ export async function POST(request: Request) {
   const exists = entries.some((e) => e.ticker === parsed.data.ticker);
   if (exists) return NextResponse.json({ error: "Ticker already exists" }, { status: 409 });
 
-  const brandColor = await fetchBrandfetchColor({ ticker: parsed.data.ticker });
+  const brandColor = await resolveStoredBrandColor(request, parsed.data.ticker, parsed.data.company);
   await setWatchlist([...entries, { ...parsed.data, theme: capitalizeFirst(parsed.data.theme.trim()), brandColor }]);
   return NextResponse.json({ ok: true });
 }
@@ -79,7 +97,7 @@ export async function PATCH(request: Request) {
       next.push(entry);
       continue;
     }
-    const brandColor = await fetchBrandfetchColor({ ticker: entry.ticker });
+    const brandColor = await resolveStoredBrandColor(request, entry.ticker, entry.company);
     if (brandColor !== entry.brandColor) updated += 1;
     next.push({ ...entry, brandColor });
   }
