@@ -281,9 +281,13 @@ export function stylesheetUrls(html: string, baseUrl: string): string[] {
   const links = html.matchAll(/<link\b[^>]*>/gi);
   for (const link of links) {
     const tag = link[0];
-    if (!/rel=["'][^"']*stylesheet[^"']*["']/i.test(tag)) continue;
     const href = tag.match(/\bhref=["']([^"']+)["']/i)?.[1];
     if (!href) continue;
+    // Accept explicit rel="stylesheet" OR bare <link href="...css..."> tags that
+    // some CMSes (RTX/Sitecore) emit without a rel attribute.
+    const hasStylesheet = /rel=["'][^"']*stylesheet[^"']*["']/i.test(tag);
+    const looksLikeCss = !tag.includes('rel=') && /\.css(\?|"|'|$)/.test(href);
+    if (!hasStylesheet && !looksLikeCss) continue;
     try {
       urls.push(new URL(href, baseUrl).toString());
     } catch {
