@@ -15,7 +15,6 @@ import {
   themeColor,
   type ColorCandidate
 } from "@/lib/brand-color";
-import { fetchBrandfetchColor } from "@/lib/brandfetch";
 import { getBrandColor, setBrandColor } from "@/lib/kv";
 
 export const runtime = "nodejs";
@@ -350,14 +349,8 @@ type Signal = { color: string; confidence: number };
 // accent — a wrong vivid color is more jarring than no color. Monochrome brands resolve
 // to null up front via their SVG logo. Zero hardcoded colors, no override table.
 async function resolveColor(company: string, ticker?: string, globalSignal?: AbortSignal): Promise<string | null> {
-  const brandfetchTicker = await fetchBrandfetchColor({ ticker, signal: globalSignal });
-  if (brandfetchTicker) return brandfetchTicker;
-
   const domain = await resolveDomain(company, ticker, globalSignal);
   if (!domain) return null;
-
-  const brandfetchDomain = await fetchBrandfetchColor({ domain, ticker, signal: globalSignal });
-  if (brandfetchDomain) return brandfetchDomain;
 
   const page = await fetchHomepage(domain, globalSignal);
   if (!page) {
