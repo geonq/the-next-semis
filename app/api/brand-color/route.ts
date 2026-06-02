@@ -182,7 +182,9 @@ async function fetchAllCss(html: string, baseUrl: string, globalSignal?: AbortSi
       const stylesheet = await fetch(stylesheetUrl, {
         redirect: "follow",
         signal: withTimeout(3000, globalSignal),
-        headers: { "User-Agent": browserUa, Accept: "text/css" }
+        // Referer mimics a real browser loading the stylesheet from the page.
+        // Some CDNs (e.g. RTX/Sitecore) reject requests without a valid Referer.
+        headers: { "User-Agent": browserUa, Accept: "text/css", Referer: baseUrl }
       });
       if (!stylesheet.ok) continue;
       text += "\n" + (await stylesheet.text());
