@@ -8,7 +8,9 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" }
+  // frame-ancestors blocks clickjacking. object-src and base-uri need no nonces and
+  // close two injection vectors regardless of whether a full script CSP is ever added.
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'none'" }
 ];
 
 const nextConfig: NextConfig = {

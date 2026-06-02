@@ -5,9 +5,32 @@ import net from "node:net";
 // so they can be unit-tested in isolation.
 
 // Reject loopback, private, link-local (incl. 169.254.169.254 cloud metadata), CGNAT,
-// and reserved ranges — for both IPv4 and IPv6 (including IPv4-mapped forms).
+// and reserved ranges — for both IPv4 and IPv6, including IPv4-mapped, IPv4-compatible,
+// NAT64 (64:ff9b::/96), and 6to4 (2002::/16) forms that embed a private IPv4.
 export function isPrivateIp(address: string): boolean {
-  const ip = address.toLowerCase().replace(/^::ffff:/, "");
+  // Strip IPv4-mapped dotted-quad form ::ffff:a.b.c.d → a.b.c.d
+  const ip = address.toLowerCase().replace(/^::ffff:/i, "");
+
+  function embeddedHexIpv4(hiText: string, loText: string): string | null {
+    const hi = parseInt(hiText, 16);
+    const lo = parseInt(loText, 16);
+    if (!Number.isFinite(hi) || !Number.isFinite(lo) || hi < 0 || hi > 0xffff || lo < 0 || lo > 0xffff) {
+      return null;
+    }
+    return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+  }
+
+  // IPv4-compatible ::x.y.z.w — deprecated but accepted by some kernels as loopback.
+  const ipv4Compat = ip.match(/^::([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)$/);
+  if (ipv4Compat) return !net.isIPv4(ipv4Compat[1]) || isPrivateIp(ipv4Compat[1]);
+
+  // IPv4-compatible hex form ::hhhh:hhhh — equivalent to ::x.y.z.w.
+  const ipv4CompatHex = ip.match(/^::([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (ipv4CompatHex) {
+    const embedded = embeddedHexIpv4(ipv4CompatHex[1], ipv4CompatHex[2]);
+    return !embedded || isPrivateIp(embedded);
+  }
+
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split(".").map(Number);
     if (a === 0 || a === 10 || a === 127) return true;
@@ -22,6 +45,37 @@ export function isPrivateIp(address: string): boolean {
     if (ip === "::" || ip === "::1") return true;
     if (ip.startsWith("fe80")) return true; // link-local
     if (ip.startsWith("fc") || ip.startsWith("fd")) return true; // unique-local fc00::/7
+
+    // NAT64 well-known prefix 64:ff9b::/96 — a NAT64 gateway routes these to the
+    // embedded IPv4 in the last 32 bits (dotted-quad or two hex groups).
+    if (ip.startsWith("64:ff9b::")) {
+      const embedded = ip.slice("64:ff9b::".length);
+      if (net.isIPv4(embedded)) return isPrivateIp(embedded);
+      const m = embedded.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+      if (m) {
+        const v4 = embeddedHexIpv4(m[1], m[2]);
+        return !v4 || isPrivateIp(v4);
+      }
+      return true; // unrecognised NAT64 suffix → reject
+    }
+
+    // Expanded NAT64 form 64:ff9b:0:0:0:0:hhhh:hhhh.
+    const expandedNat64 = ip.match(/^64:ff9b:0{1,4}:0{1,4}:0{1,4}:0{1,4}:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (expandedNat64) {
+      const v4 = embeddedHexIpv4(expandedNat64[1], expandedNat64[2]);
+      return !v4 || isPrivateIp(v4);
+    }
+
+    // 6to4 2002::/16 — bits 17-48 encode the embedded IPv4 (groups 2 and 3).
+    if (ip.startsWith("2002:")) {
+      const parts = ip.split(":");
+      if (parts[1] && parts[2]) {
+        const v4 = embeddedHexIpv4(parts[1], parts[2]);
+        if (v4 && net.isIPv4(v4)) return isPrivateIp(v4);
+      }
+      return true; // malformed 6to4 → reject
+    }
+
     return false;
   }
   return true; // unparseable → reject
