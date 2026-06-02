@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const exists = entries.some((e) => e.ticker === parsed.data.ticker);
   if (exists) return NextResponse.json({ error: "Ticker already exists" }, { status: 409 });
 
-  const brandColor = parsed.data.assetType === "crypto" ? null : await fetchBrandfetchColor({ ticker: parsed.data.ticker });
+  const brandColor = await fetchBrandfetchColor({ ticker: parsed.data.ticker });
   await setWatchlist([...entries, { ...parsed.data, theme: capitalizeFirst(parsed.data.theme.trim()), brandColor }]);
   return NextResponse.json({ ok: true });
 }
@@ -79,7 +79,7 @@ export async function PATCH(request: Request) {
       next.push(entry);
       continue;
     }
-    const brandColor = entry.assetType === "crypto" ? null : await fetchBrandfetchColor({ ticker: entry.ticker });
+    const brandColor = await fetchBrandfetchColor({ ticker: entry.ticker });
     if (brandColor !== entry.brandColor) updated += 1;
     next.push({ ...entry, brandColor });
   }

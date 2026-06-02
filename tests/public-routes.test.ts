@@ -45,10 +45,9 @@ describe("public API route caps", () => {
       })
     );
 
-    const response = await search(new Request("https://app.test/api/search?q=btc"));
+    const response = await search(new Request("https://app.test/api/search?q=btc&assetClass=crypto"));
 
     await expect(response.json()).resolves.toEqual([
-      { ticker: "NVDA", company: "NVIDIA Corporation", exchange: "Nasdaq", assetType: "equity" },
       { ticker: "BTC-USD", company: "Bitcoin USD", exchange: "Crypto", assetType: "crypto" }
     ]);
   });

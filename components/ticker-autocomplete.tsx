@@ -3,16 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 
 type AssetType = "equity" | "etf" | "crypto";
+type AssetClass = "stock" | "crypto";
 type Suggestion = { ticker: string; company: string; exchange: string; assetType: AssetType };
 
 export function TickerAutocomplete({
   ticker,
   company,
+  assetClass = "stock",
   onSelect,
   required
 }: {
   ticker: string;
   company: string;
+  assetClass?: AssetClass;
   onSelect: (ticker: string, company?: string, assetType?: AssetType) => void;
   required?: boolean;
 }) {
@@ -28,6 +31,13 @@ export function TickerAutocomplete({
   }, [ticker]);
 
   useEffect(() => {
+    setSuggestions([]);
+    setOpen(false);
+    setHighlighted(-1);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  }, [assetClass]);
+
+  useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -40,7 +50,7 @@ export function TickerAutocomplete({
   function handleChange(value: string) {
     setQuery(value);
     setHighlighted(-1);
-    onSelect(value.toUpperCase());
+    onSelect(value.toUpperCase(), undefined, assetClass === "crypto" ? "crypto" : undefined);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
     if (value.length < 1) {
@@ -52,7 +62,7 @@ export function TickerAutocomplete({
 
     timeoutRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(value)}`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(value)}&assetClass=${assetClass}`);
         const data: Suggestion[] = await res.json();
         setSuggestions(data);
         setOpen(data.length > 0);

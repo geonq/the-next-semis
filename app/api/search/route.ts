@@ -25,6 +25,7 @@ function quoteSortRank(quoteType: string | undefined) {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
+  const assetClass = searchParams.get("assetClass") === "crypto" ? "crypto" : "stock";
   if (!q || q.length < 1 || q.length > MAX_SEARCH_QUERY) return NextResponse.json([]);
 
   try {
@@ -35,9 +36,10 @@ export async function GET(request: Request) {
     });
     const data = await res.json();
 
-    const quotes = ((data.quotes as YahooQuote[]) ?? []).filter((quote) =>
-      quote.quoteType === "EQUITY" || quote.quoteType === "ETF" || quote.quoteType === "CRYPTOCURRENCY"
-    );
+    const quotes = ((data.quotes as YahooQuote[]) ?? []).filter((quote) => {
+      if (assetClass === "crypto") return quote.quoteType === "CRYPTOCURRENCY";
+      return quote.quoteType === "EQUITY" || quote.quoteType === "ETF";
+    });
     const suggestions = quotes
       .sort((a, b) => quoteSortRank(a.quoteType) - quoteSortRank(b.quoteType))
       .slice(0, 6)

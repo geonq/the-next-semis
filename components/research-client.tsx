@@ -13,6 +13,7 @@ import { TickerAutocomplete } from "./ticker-autocomplete";
 import { useLiveQuotes } from "./use-live-quotes";
 
 type AssetType = "equity" | "etf" | "crypto";
+type AssetClass = "stock" | "crypto";
 
 export function ResearchClient({
   entries,
@@ -221,6 +222,7 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
   const [form, setForm] = useState({
     ticker: "",
     company: "",
+    assetClass: "stock" as AssetClass,
     assetType: "equity" as AssetType,
     theme: "",
     conditions: "",
@@ -238,7 +240,7 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
       body: JSON.stringify({
         ticker: form.ticker,
         company: form.company,
-        assetType: form.assetType,
+        assetType: form.assetClass === "crypto" ? "crypto" : form.assetType,
         theme: form.theme,
         conditions: form.conditions
           .split("\n")
@@ -253,6 +255,7 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
       setForm({
         ticker: "",
         company: "",
+        assetClass: "stock",
         assetType: "equity",
         theme: "",
         conditions: "",
@@ -279,9 +282,23 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
     <form className="add-form" onSubmit={handleSubmit}>
       <p className="section-label">New watchlist entry</p>
       <div className="add-fields">
+        <SegmentedTabs
+          options={["Stock", "Crypto"]}
+          value={form.assetClass === "crypto" ? "Crypto" : "Stock"}
+          onChange={(value) =>
+            setForm((f) => ({
+              ...f,
+              ticker: "",
+              company: "",
+              assetClass: value === "Crypto" ? "crypto" : "stock",
+              assetType: value === "Crypto" ? "crypto" : "equity"
+            }))
+          }
+        />
         <TickerAutocomplete
           ticker={form.ticker}
           company={form.company}
+          assetClass={form.assetClass}
           onSelect={(ticker, company, assetType) =>
             setForm((f) => ({ ...f, ticker, company: company ?? f.company, assetType: assetType ?? f.assetType }))
           }
@@ -307,16 +324,6 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
             <option key={t} value={capitalizeFirst(t)} />
           ))}
         </datalist>
-
-        <select
-          className="add-input add-select"
-          value={form.assetType}
-          onChange={(e) => setForm((f) => ({ ...f, assetType: e.target.value as AssetType }))}
-        >
-          <option value="equity">equity</option>
-          <option value="etf">etf</option>
-          <option value="crypto">crypto</option>
-        </select>
 
         <select
           className="add-input add-select"
