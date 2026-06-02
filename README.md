@@ -30,6 +30,22 @@ npm run dev
 
 Then open `http://localhost:3000`.
 
+## First Deploy
+
+Import `main` into Vercel as a Next.js project, then set these production environment variables:
+
+```sh
+ADMIN_USERNAME
+ADMIN_PASSWORD
+JWT_SECRET
+UPSTASH_REDIS_REST_URL
+UPSTASH_REDIS_REST_TOKEN
+```
+
+Upstash Redis is required on Vercel for persisted edits and production login rate limiting. Without it, production write paths fail closed by design.
+
+Optional: set `BRANDFETCH_API_KEY` to enable Brandfetch Brand API as a structured brand-color fallback when public website detection fails. The app still deploys without it and returns honest neutral colors.
+
 ## Status
 
-The project is mid-migration from Phoenix/Fly.io to Next.js/Vercel. The current Next.js app is a faithful translation of the existing prototype, not the finished research product yet. The next work is expanding the portfolio/research data model and making the research tab substantially more complete.
+The Next.js/Vercel migration is complete and the app is ready for first Vercel deployment testing. The next planned feature work is structured research evidence scoring.

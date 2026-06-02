@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   colorClose,
+  extractBrandApiColor,
   extractBrandVarColor,
   extractPngAccent,
   extractSvgColors,
@@ -302,6 +303,34 @@ async function fetchLogoAccent(domain: string, globalSignal?: AbortSignal): Prom
   return null;
 }
 
+async function fetchBrandApiColor(domain: string | null, ticker?: string, globalSignal?: AbortSignal): Promise<string | null> {
+  const apiKey = process.env.BRANDFETCH_API_KEY;
+  if (!apiKey) return null;
+
+  const paths: string[] = [];
+  if (domain) paths.push(`/v2/brands/domain/${encodeURIComponent(domain)}`);
+  if (ticker) paths.push(`/v2/brands/ticker/${encodeURIComponent(ticker)}`);
+
+  for (const path of paths) {
+    try {
+      const response = await fetch(`https://api.brandfetch.io${path}`, {
+        signal: withTimeout(4000, globalSignal),
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "User-Agent": browserUa
+        }
+      });
+      if (!response.ok) continue;
+      const color = extractBrandApiColor(await response.json());
+      if (color) return color;
+    } catch {
+      // Optional fallback only; failures preserve honest null.
+    }
+  }
+
+  return null;
+}
+
 function colorResponse(color: string | null) {
   return NextResponse.json({ color }, { headers: cacheHeaders });
 }
@@ -350,13 +379,13 @@ type Signal = { color: string; confidence: number };
 // to null up front via their SVG logo. Zero hardcoded colors, no override table.
 async function resolveColor(company: string, ticker?: string, globalSignal?: AbortSignal): Promise<string | null> {
   const domain = await resolveDomain(company, ticker, globalSignal);
-  if (!domain) return null;
+  if (!domain) return await fetchBrandApiColor(null, ticker, globalSignal);
 
   const page = await fetchHomepage(domain, globalSignal);
   if (!page) {
     // Homepage blocked or unreachable (e.g. tesla.com 403s server requests).
     // Logo sources work independently — use as best-effort fallback.
-    return await fetchLogoAccent(domain, globalSignal);
+    return (await fetchLogoAccent(domain, globalSignal)) ?? (await fetchBrandApiColor(domain, ticker, globalSignal));
   }
 
   const signals: Signal[] = [];
@@ -401,11 +430,11 @@ async function resolveColor(company: string, ticker?: string, globalSignal?: Abo
     if (favicon) signals.push({ color: favicon, confidence: 0.4 });
   }
 
-  if (signals.length === 0) return null;
+  if (signals.length === 0) return await fetchBrandApiColor(domain, ticker, globalSignal);
   signals.sort((a, b) => b.confidence - a.confidence);
   const best = signals[0];
   if (best.confidence < 0.55 && !signals.some((s) => s !== best && colorClose(s.color, best.color))) {
-    return null; // weak and uncorroborated → neutral accent
+    return await fetchBrandApiColor(domain, ticker, globalSignal); // weak and uncorroborated → optional vendor fallback
   }
   return best.color;
 }

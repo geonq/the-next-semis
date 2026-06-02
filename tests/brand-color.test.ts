@@ -4,6 +4,7 @@ import {
   cleanHex,
   colorClose,
   colorSignal,
+  extractBrandApiColor,
   extractBrandVarColor,
   extractPngAccent,
   extractSvgColors,
@@ -73,6 +74,16 @@ describe("brand-color pure helpers", () => {
     expect(candidate && isStrongStatisticalSignal(candidate)).toBe(true);
     expect(extractBrandVarColor(":root{--brand-primary:#ce1126;--primary:#4e8af7;}")).toBe("#ce1126");
     expect(extractBrandVarColor(":root{--primary:#4e8af7;}")).toBeNull();
+  });
+
+  it("extracts usable structured Brand API colors", () => {
+    expect(
+      extractBrandApiColor({
+        colors: [{ hex: "#ffffff" }, { hex: "#ce1126" }, { hex: "#111111" }]
+      })
+    ).toBe("#ce1126");
+    expect(extractBrandApiColor({ colors: [{ hex: "#ffffff" }, { hex: "#111111" }] })).toBeNull();
+    expect(extractBrandApiColor({ colors: "nope" })).toBeNull();
   });
 
   it("extracts SVG colors and PNG accents", () => {

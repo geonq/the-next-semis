@@ -146,6 +146,28 @@ export function extractBrandVarColor(css: string): string | null {
   return mostSaturated(candidates);
 }
 
+export function extractBrandApiColor(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const colors = (data as { colors?: unknown }).colors;
+  if (!Array.isArray(colors)) return null;
+
+  let best: string | null = null;
+  let bestSignal = 0;
+  for (const entry of colors) {
+    if (!entry || typeof entry !== "object") continue;
+    const raw = (entry as { hex?: unknown }).hex;
+    if (typeof raw !== "string") continue;
+    const color = parseBrandColor(raw);
+    if (!color || isMonoHex(color)) continue;
+    const signal = colorSignal(color);
+    if (signal > bestSignal) {
+      best = color;
+      bestSignal = signal;
+    }
+  }
+  return best;
+}
+
 export function extractSvgColors(svg: string): string[] {
   const out: string[] = [];
   for (const match of svg.matchAll(/(?:fill|stroke|stop-color)\s*[=:]\s*["']?\s*(#[0-9a-f]{3,8}\b|rgba?\([^)]+\))/gi)) {
