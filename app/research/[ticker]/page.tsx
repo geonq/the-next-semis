@@ -45,7 +45,9 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
               />
               <span className="ticker-company">{entry.company}</span>
             </h1>
-            <p className="subtle">{capitalizeFirst(entry.theme)}</p>
+            <p className="subtle">
+              {capitalizeFirst(entry.theme)} · {entry.assetType}
+            </p>
           </div>
 
           <div className="price-block">

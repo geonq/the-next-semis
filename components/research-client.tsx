@@ -12,6 +12,8 @@ import { SegmentedTabs } from "./segmented-tabs";
 import { TickerAutocomplete } from "./ticker-autocomplete";
 import { useLiveQuotes } from "./use-live-quotes";
 
+type AssetType = "equity" | "etf" | "crypto";
+
 export function ResearchClient({
   entries,
   initialQuotes,
@@ -91,6 +93,8 @@ export function ResearchClient({
 
               <p className="meta-line">
                 {capitalizeFirst(entry.theme)}
+                <span className="dot">·</span>
+                <span>{entry.assetType}</span>
                 <span className="dot">·</span>
                 <span className={convictionClass(entry.conviction)}>{entry.conviction}</span>
                 <span className="dot">·</span>
@@ -217,6 +221,7 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
   const [form, setForm] = useState({
     ticker: "",
     company: "",
+    assetType: "equity" as AssetType,
     theme: "",
     conditions: "",
     conviction: "draft",
@@ -233,6 +238,7 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
       body: JSON.stringify({
         ticker: form.ticker,
         company: form.company,
+        assetType: form.assetType,
         theme: form.theme,
         conditions: form.conditions
           .split("\n")
@@ -244,7 +250,15 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
     });
 
     if (res.ok) {
-      setForm({ ticker: "", company: "", theme: "", conditions: "", conviction: "draft", status: "watching" });
+      setForm({
+        ticker: "",
+        company: "",
+        assetType: "equity",
+        theme: "",
+        conditions: "",
+        conviction: "draft",
+        status: "watching"
+      });
       setOpen(false);
       onAdded();
     } else {
@@ -268,7 +282,9 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
         <TickerAutocomplete
           ticker={form.ticker}
           company={form.company}
-          onSelect={(ticker, company) => setForm((f) => ({ ...f, ticker, company: company ?? f.company }))}
+          onSelect={(ticker, company, assetType) =>
+            setForm((f) => ({ ...f, ticker, company: company ?? f.company, assetType: assetType ?? f.assetType }))
+          }
           required
         />
         <input
@@ -291,6 +307,16 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
             <option key={t} value={capitalizeFirst(t)} />
           ))}
         </datalist>
+
+        <select
+          className="add-input add-select"
+          value={form.assetType}
+          onChange={(e) => setForm((f) => ({ ...f, assetType: e.target.value as AssetType }))}
+        >
+          <option value="equity">equity</option>
+          <option value="etf">etf</option>
+          <option value="crypto">crypto</option>
+        </select>
 
         <select
           className="add-input add-select"

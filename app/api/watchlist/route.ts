@@ -7,6 +7,7 @@ import { getWatchlist, setWatchlist } from "@/lib/kv";
 const addSchema = z.object({
   ticker: z.string().min(1).max(20).transform((v) => v.toUpperCase()),
   company: z.string().min(1).max(200),
+  assetType: z.enum(["equity", "etf", "crypto"]).optional().default("equity"),
   theme: z.string().min(1).max(100),
   conditions: z.array(z.string().max(500)).max(50),
   conviction: z.string().min(1).max(50),
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
   const exists = entries.some((e) => e.ticker === parsed.data.ticker);
   if (exists) return NextResponse.json({ error: "Ticker already exists" }, { status: 409 });
 
-  const brandColor = await fetchBrandfetchColor({ ticker: parsed.data.ticker });
+  const brandColor = parsed.data.assetType === "crypto" ? null : await fetchBrandfetchColor({ ticker: parsed.data.ticker });
   await setWatchlist([...entries, { ...parsed.data, theme: capitalizeFirst(parsed.data.theme.trim()), brandColor }]);
   return NextResponse.json({ ok: true });
 }
@@ -58,6 +59,7 @@ export async function PUT(request: Request) {
     conditions: parsed.data.conditions ?? current.conditions,
     conviction: parsed.data.conviction ?? current.conviction,
     status: parsed.data.status ?? current.status,
+    assetType: current.assetType,
     brandColor: current.brandColor
   };
   await setWatchlist(next);
@@ -77,7 +79,7 @@ export async function PATCH(request: Request) {
       next.push(entry);
       continue;
     }
-    const brandColor = await fetchBrandfetchColor({ ticker: entry.ticker });
+    const brandColor = entry.assetType === "crypto" ? null : await fetchBrandfetchColor({ ticker: entry.ticker });
     if (brandColor !== entry.brandColor) updated += 1;
     next.push({ ...entry, brandColor });
   }

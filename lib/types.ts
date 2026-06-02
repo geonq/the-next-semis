@@ -11,6 +11,7 @@ export type Position = {
 export type WatchlistEntry = {
   ticker: string;
   company: string;
+  assetType: "equity" | "etf" | "crypto";
   theme: string;
   conditions: string[];
   conviction: string;

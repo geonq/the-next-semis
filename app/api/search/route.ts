@@ -1,6 +1,27 @@
 import { NextResponse } from "next/server";
 import { MAX_SEARCH_QUERY } from "@/lib/market";
 
+type YahooQuote = {
+  symbol?: string;
+  shortname?: string;
+  longname?: string;
+  quoteType?: string;
+  exchDisp?: string;
+};
+
+function assetTypeFor(quoteType: string | undefined) {
+  if (quoteType === "CRYPTOCURRENCY") return "crypto";
+  if (quoteType === "ETF") return "etf";
+  return "equity";
+}
+
+function quoteSortRank(quoteType: string | undefined) {
+  if (quoteType === "EQUITY") return 0;
+  if (quoteType === "ETF") return 1;
+  if (quoteType === "CRYPTOCURRENCY") return 2;
+  return 3;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
@@ -14,16 +35,17 @@ export async function GET(request: Request) {
     });
     const data = await res.json();
 
-    const quotes = ((data.quotes as Record<string, string>[]) ?? []).filter((quote) =>
-      quote.quoteType === "EQUITY" || quote.quoteType === "ETF"
+    const quotes = ((data.quotes as YahooQuote[]) ?? []).filter((quote) =>
+      quote.quoteType === "EQUITY" || quote.quoteType === "ETF" || quote.quoteType === "CRYPTOCURRENCY"
     );
     const suggestions = quotes
-      .sort((a, b) => (a.quoteType === "EQUITY" ? 0 : 1) - (b.quoteType === "EQUITY" ? 0 : 1))
+      .sort((a, b) => quoteSortRank(a.quoteType) - quoteSortRank(b.quoteType))
       .slice(0, 6)
       .map((quote) => ({
         ticker: quote.symbol,
         company: quote.shortname ?? quote.longname ?? "",
-        exchange: quote.exchDisp ?? ""
+        exchange: quote.quoteType === "CRYPTOCURRENCY" ? "Crypto" : quote.exchDisp ?? "",
+        assetType: assetTypeFor(quote.quoteType)
       }));
 
     return NextResponse.json(suggestions);

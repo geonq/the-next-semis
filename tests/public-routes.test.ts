@@ -35,6 +35,24 @@ describe("public API route caps", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("includes crypto suggestions in ticker search", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        quotes: [
+          { symbol: "BTC-USD", shortname: "Bitcoin USD", quoteType: "CRYPTOCURRENCY" },
+          { symbol: "NVDA", shortname: "NVIDIA Corporation", quoteType: "EQUITY", exchDisp: "Nasdaq" }
+        ]
+      })
+    );
+
+    const response = await search(new Request("https://app.test/api/search?q=btc"));
+
+    await expect(response.json()).resolves.toEqual([
+      { ticker: "NVDA", company: "NVIDIA Corporation", exchange: "Nasdaq", assetType: "equity" },
+      { ticker: "BTC-USD", company: "Bitcoin USD", exchange: "Crypto", assetType: "crypto" }
+    ]);
+  });
+
   it("rejects invalid history/news tickers without fetching", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
 

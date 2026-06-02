@@ -16,12 +16,17 @@ const positionSchema = z.object({
 export const watchlistSchema = z.object({
   ticker: z.string().min(1).transform((value) => value.toUpperCase()),
   company: z.string().min(1),
+  assetType: z.enum(["equity", "etf", "crypto"]).default("equity"),
   theme: z.string().min(1),
   conditions: z.array(z.string()),
   conviction: z.string().min(1),
   status: z.string().min(1),
   brandColor: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().default(null)
-}).transform((entry) => ({ ...entry, brandColor: entry.brandColor ?? null }));
+}).transform((entry) => ({
+  ...entry,
+  assetType: entry.assetType ?? "equity",
+  brandColor: entry.brandColor ?? null
+}));
 
 const dataDir = path.join(process.cwd(), "data");
 
@@ -43,7 +48,11 @@ export async function loadWatchlist(): Promise<WatchlistEntry[]> {
 export function parseWatchlistEntries(data: unknown): WatchlistEntry[] {
   const parsed = z.array(watchlistSchema).safeParse(data);
   if (!parsed.success) return [];
-  return parsed.data.map((entry) => ({ ...entry, brandColor: entry.brandColor ?? null }));
+  return parsed.data.map((entry) => ({
+    ...entry,
+    assetType: entry.assetType ?? "equity",
+    brandColor: entry.brandColor ?? null
+  }));
 }
 
 export async function loadThesis(): Promise<string> {
