@@ -15,6 +15,7 @@ export type WatchlistEntry = {
   conditions: string[];
   conviction: string;
   status: string;
+  brandColor: string | null;
 };
 
 export type Quote = {

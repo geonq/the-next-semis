@@ -71,7 +71,12 @@ export function ResearchClient({
             <Link className="research-card" href={`/research/${entry.ticker}`}>
               <div className="card-top">
                 <div>
-                  <BrandTicker ticker={entry.ticker} company={entry.company} className="ticker card-ticker" />
+                  <BrandTicker
+                    ticker={entry.ticker}
+                    company={entry.company}
+                    brandColor={entry.brandColor}
+                    className="ticker card-ticker"
+                  />
                   <p className="subtle">{entry.company}</p>
                 </div>
                 {entry.current_price != null ? (

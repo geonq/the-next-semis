@@ -37,7 +37,12 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
         <div className="ticker-hero">
           <div>
             <h1 className="ticker-title">
-              <BrandTicker ticker={ticker} company={entry.company} className="ticker-title-symbol" />
+              <BrandTicker
+                ticker={ticker}
+                company={entry.company}
+                brandColor={entry.brandColor}
+                className="ticker-title-symbol"
+              />
               <span className="ticker-company">{entry.company}</span>
             </h1>
             <p className="subtle">{capitalizeFirst(entry.theme)}</p>
@@ -59,7 +64,7 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
         </div>
       </section>
 
-      <PriceChart history={history} ticker={ticker} company={entry.company} />
+      <PriceChart history={history} ticker={ticker} company={entry.company} brandColor={entry.brandColor} />
 
       <TickerStateEditor
         ticker={ticker}

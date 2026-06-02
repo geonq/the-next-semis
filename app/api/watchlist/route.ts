@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { fetchBrandfetchColor } from "@/lib/brandfetch";
 import { capitalizeFirst } from "@/lib/format";
 import { getWatchlist, setWatchlist } from "@/lib/kv";
 
@@ -22,6 +23,10 @@ const updateSchema = z.object({
   status: z.enum(["watching", "triggered", "invalidated"]).optional()
 });
 
+const refreshColorsSchema = z.object({
+  force: z.boolean().optional().default(false)
+});
+
 export async function POST(request: Request) {
   const body = await request.json();
   const parsed = addSchema.safeParse(body);
@@ -31,7 +36,8 @@ export async function POST(request: Request) {
   const exists = entries.some((e) => e.ticker === parsed.data.ticker);
   if (exists) return NextResponse.json({ error: "Ticker already exists" }, { status: 409 });
 
-  await setWatchlist([...entries, { ...parsed.data, theme: capitalizeFirst(parsed.data.theme.trim()) }]);
+  const brandColor = await fetchBrandfetchColor({ ticker: parsed.data.ticker });
+  await setWatchlist([...entries, { ...parsed.data, theme: capitalizeFirst(parsed.data.theme.trim()), brandColor }]);
   return NextResponse.json({ ok: true });
 }
 
@@ -51,10 +57,33 @@ export async function PUT(request: Request) {
     theme: parsed.data.theme ? capitalizeFirst(parsed.data.theme.trim()) : current.theme,
     conditions: parsed.data.conditions ?? current.conditions,
     conviction: parsed.data.conviction ?? current.conviction,
-    status: parsed.data.status ?? current.status
+    status: parsed.data.status ?? current.status,
+    brandColor: current.brandColor
   };
   await setWatchlist(next);
   return NextResponse.json({ ok: true });
+}
+
+export async function PATCH(request: Request) {
+  const body = await request.json().catch(() => ({}));
+  const parsed = refreshColorsSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+
+  const entries = await getWatchlist();
+  let updated = 0;
+  const next = [];
+  for (const entry of entries) {
+    if (!parsed.data.force && entry.brandColor !== null) {
+      next.push(entry);
+      continue;
+    }
+    const brandColor = await fetchBrandfetchColor({ ticker: entry.ticker });
+    if (brandColor !== entry.brandColor) updated += 1;
+    next.push({ ...entry, brandColor });
+  }
+
+  await setWatchlist(next);
+  return NextResponse.json({ ok: true, updated });
 }
 
 export async function DELETE(request: Request) {

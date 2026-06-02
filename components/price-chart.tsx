@@ -16,12 +16,23 @@ function readThemeColors() {
   };
 }
 
-export function PriceChart({ history, ticker, company }: { history: Candle[]; ticker: string; company: string }) {
+export function PriceChart({
+  history,
+  ticker,
+  company,
+  brandColor: storedBrandColor
+}: {
+  history: Candle[];
+  ticker: string;
+  company: string;
+  brandColor?: string | null;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
   const brandColorRef = useRef<string | null>(null);
-  const brandColor = useBrandColor(ticker, company);
+  const fetchedBrandColor = useBrandColor(ticker, company, storedBrandColor === undefined);
+  const brandColor = storedBrandColor === undefined ? fetchedBrandColor : storedBrandColor;
 
   function applySeriesColor(color: string) {
     seriesRef.current?.applyOptions({

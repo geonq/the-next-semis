@@ -14,11 +14,12 @@ function isHexColor(value: unknown): value is string {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 }
 
-export function useBrandColor(ticker: string, company: string) {
+export function useBrandColor(ticker: string, company: string, enabled = true) {
   const cacheKey = `${ticker.toUpperCase()}:${company}`;
   const [color, setColor] = useState<string | null>(() => sessionCache.get(cacheKey) ?? null);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!ticker || !company) return;
 
     if (sessionCache.has(cacheKey)) {
@@ -43,7 +44,7 @@ export function useBrandColor(ticker: string, company: string) {
     return () => {
       cancelled = true;
     };
-  }, [cacheKey, ticker, company]);
+  }, [cacheKey, ticker, company, enabled]);
 
   return color;
 }

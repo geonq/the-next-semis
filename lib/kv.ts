@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import type { Position, SavedItem, WatchlistEntry } from "./types";
-import { loadPositions, loadThesis, loadWatchlist } from "./data";
+import { loadPositions, loadThesis, loadWatchlist, parseWatchlistEntries } from "./data";
 
 const savedItemSchema = z.object({
   id: z.string().min(1),
@@ -43,8 +43,8 @@ export async function getPositions(): Promise<Position[]> {
 export async function getWatchlist(): Promise<WatchlistEntry[]> {
   const redis = getRedis();
   if (redis) {
-    const data = await redis.get<WatchlistEntry[]>("watchlist");
-    if (data) return data;
+    const data = await redis.get("watchlist");
+    if (data) return parseWatchlistEntries(data);
     const seed = await loadWatchlist();
     await redis.set("watchlist", seed);
     return seed;
