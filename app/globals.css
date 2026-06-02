@@ -73,8 +73,13 @@ ol {
 }
 
 .brand {
-  font-size: 14px;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+
+.brand-logo {
+  display: block;
+  object-fit: contain;
 }
 
 .nav {

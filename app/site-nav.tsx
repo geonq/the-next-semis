@@ -33,7 +33,13 @@ export function SiteNav() {
     <header className="app-header">
       <div className="app-header-inner">
         <Link className="brand" href="/">
-          The Next Semis
+          <img
+            src={theme === "dark" ? "/logo-white.png" : "/logo-dark.png"}
+            alt="geonq"
+            className="brand-logo"
+            height={28}
+            width={28}
+          />
         </Link>
         <nav className="nav" aria-label="Main navigation">
           {navItems.map((item) => {

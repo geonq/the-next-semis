@@ -3,7 +3,7 @@ import "./globals.css";
 import { SiteNav } from "./site-nav";
 
 export const metadata: Metadata = {
-  title: "The Next Semis",
+  title: "geonq",
   description: "A live portfolio and research dashboard for the next AI-scale infrastructure boom."
 };
 
