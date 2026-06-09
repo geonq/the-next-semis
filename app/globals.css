@@ -116,20 +116,6 @@ ol {
   align-items: center;
 }
 
-.icon-minus-badge {
-  display: inline-flex;
-  position: relative;
-}
-
-.icon-minus {
-  position: absolute;
-  bottom: -2px;
-  right: -5px;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-}
-
 
 .shell {
   margin: 0 auto;
