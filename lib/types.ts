@@ -84,5 +84,6 @@ export type ResearchDoc = {
   name: string;
   type: "md" | "pdf";
   size: number;
+  blobUrl: string;
   addedAt: number;
 };

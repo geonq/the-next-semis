@@ -1,5 +1,6 @@
 "use client";
 
+import { upload } from "@vercel/blob/client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ResearchDoc } from "@/lib/types";
@@ -17,6 +18,8 @@ function relativeTime(unixSeconds: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+const MAX_BYTES = 25 * 1024 * 1024;
+
 export function ResearchDocs({ docs, isAdmin }: { docs: ResearchDoc[]; isAdmin: boolean }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -26,26 +29,40 @@ export function ResearchDocs({ docs, isAdmin }: { docs: ResearchDoc[]; isAdmin: 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext !== "md" && ext !== "pdf") {
+      setError("Only .md and .pdf files are accepted");
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      setError("File exceeds 25 MB limit");
+      return;
+    }
+
     setUploading(true);
     setError("");
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch("/api/research-docs", { method: "POST", body: form });
-    const data = await res.json();
-    setUploading(false);
-    if (!res.ok) {
-      setError(data.error ?? "Upload failed");
-    } else {
+
+    try {
+      await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/research-docs",
+        clientPayload: JSON.stringify({ name: file.name, size: file.size }),
+      });
       router.refresh();
+    } catch (err) {
+      setError((err as Error).message ?? "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
     }
-    if (fileRef.current) fileRef.current.value = "";
   }
 
   async function handleDelete(id: string) {
     await fetch("/api/research-docs", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id })
+      body: JSON.stringify({ id }),
     });
     router.refresh();
   }
@@ -75,7 +92,11 @@ export function ResearchDocs({ docs, isAdmin }: { docs: ResearchDoc[]; isAdmin: 
         ) : null}
       </div>
 
-      {error ? <p className="reading-empty" style={{ color: "var(--color-loss)" }}>{error}</p> : null}
+      {error ? (
+        <p className="reading-empty" style={{ color: "var(--color-loss)" }}>
+          {error}
+        </p>
+      ) : null}
 
       {docs.length === 0 ? (
         <p className="reading-empty">No documents yet.</p>
@@ -88,7 +109,7 @@ export function ResearchDocs({ docs, isAdmin }: { docs: ResearchDoc[]; isAdmin: 
                   <span className={`reading-badge ${doc.type}`}>{doc.type.toUpperCase()}</span>
                   <a
                     className="reading-title"
-                    href={`/api/research-docs?id=${doc.id}`}
+                    href={doc.blobUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -97,8 +118,8 @@ export function ResearchDocs({ docs, isAdmin }: { docs: ResearchDoc[]; isAdmin: 
                 </div>
               </div>
               <div className="reading-item-right">
-                <span>{formatBytes(doc.size)}</span>
-                <span>·</span>
+                {doc.size > 0 ? <span>{formatBytes(doc.size)}</span> : null}
+                {doc.size > 0 ? <span>·</span> : null}
                 <span>{relativeTime(doc.addedAt)}</span>
                 {isAdmin ? (
                   <button

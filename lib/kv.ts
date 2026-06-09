@@ -131,6 +131,7 @@ const researchDocSchema = z.object({
   name: z.string().min(1),
   type: z.enum(["md", "pdf"]),
   size: z.number(),
+  blobUrl: z.string().default(""),
   addedAt: z.number()
 });
 
@@ -160,39 +161,6 @@ export async function setResearchDocs(docs: ResearchDoc[]): Promise<void> {
     return;
   }
   await fs.writeFile(path.join(process.cwd(), "data", "research_docs.json"), JSON.stringify(docs, null, 2));
-}
-
-export async function getResearchDocContent(id: string): Promise<string | null> {
-  const redis = getRedis();
-  if (redis) {
-    return redis.get<string>(`research_doc_content:${id}`);
-  }
-  try {
-    return await fs.readFile(path.join(process.cwd(), "data", "research", id), "utf8");
-  } catch {
-    return null;
-  }
-}
-
-export async function setResearchDocContent(id: string, content: string): Promise<void> {
-  const redis = getRedis();
-  if (redis) {
-    await redis.set(`research_doc_content:${id}`, content);
-    return;
-  }
-  await fs.mkdir(path.join(process.cwd(), "data", "research"), { recursive: true });
-  await fs.writeFile(path.join(process.cwd(), "data", "research", id), content);
-}
-
-export async function deleteResearchDocContent(id: string): Promise<void> {
-  const redis = getRedis();
-  if (redis) {
-    await redis.del(`research_doc_content:${id}`);
-    return;
-  }
-  try {
-    await fs.unlink(path.join(process.cwd(), "data", "research", id));
-  } catch {}
 }
 
 export async function setBrandColor(company: string, color: string | null): Promise<void> {

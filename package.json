@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",
+    "@vercel/blob": "^2.4.0",
     "iconoir-react": "^7.11.0",
     "jose": "^6.2.3",
     "lightweight-charts": "^5.2.0",

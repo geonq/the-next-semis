@@ -1,105 +1,83 @@
+import { del } from "@vercel/blob";
+import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth";
-import {
-  deleteResearchDocContent,
-  getResearchDocContent,
-  getResearchDocs,
-  setResearchDocContent,
-  setResearchDocs
-} from "@/lib/kv";
+import { getResearchDocs, setResearchDocs } from "@/lib/kv";
 import type { ResearchDoc } from "@/lib/types";
 
-const MAX_BYTES = 4 * 1024 * 1024;
+const MAX_BYTES = 25 * 1024 * 1024;
 
-async function assertAdmin(): Promise<boolean> {
+async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
   const token = cookieStore.get("session")?.value;
   return !!token && (await verifySession(token));
 }
 
-export async function GET(request: NextRequest) {
-  const id = request.nextUrl.searchParams.get("id");
-
-  if (id) {
-    const docs = await getResearchDocs();
-    const doc = docs.find((d) => d.id === id);
-    if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-    const content = await getResearchDocContent(id);
-    if (content === null) return NextResponse.json({ error: "Content not found" }, { status: 404 });
-
-    if (doc.type === "md") {
-      return new NextResponse(content, {
-        headers: {
-          "Content-Type": "text/markdown; charset=utf-8",
-          "Content-Disposition": `attachment; filename="${doc.name}"`
-        }
-      });
-    }
-
-    const buffer = Buffer.from(content, "base64");
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${doc.name}"`
-      }
-    });
-  }
-
+export async function GET() {
   const docs = await getResearchDocs();
   return NextResponse.json(docs);
 }
 
-export async function POST(request: NextRequest) {
-  if (!(await assertAdmin())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+// Handles both the token-generation step and the completion callback from Vercel Blob.
+export async function POST(request: NextRequest): Promise<Response> {
+  const body = (await request.json()) as HandleUploadBody;
+
+  try {
+    const jsonResponse = await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async (_pathname, clientPayload) => {
+        if (!(await isAdmin())) throw new Error("Unauthorized");
+        const { name } = JSON.parse(clientPayload ?? "{}") as { name?: string };
+        const ext = name?.split(".").pop()?.toLowerCase();
+        if (ext !== "md" && ext !== "pdf") throw new Error("Only .md and .pdf files are accepted");
+        return {
+          allowedContentTypes: ["application/pdf", "text/markdown", "text/plain"],
+          maximumSizeInBytes: MAX_BYTES,
+          tokenPayload: clientPayload ?? "",
+        };
+      },
+      onUploadCompleted: async ({ blob, tokenPayload }) => {
+        const { name, size } = JSON.parse(tokenPayload ?? "{}") as {
+          name?: string;
+          size?: number;
+        };
+        const fileName = name ?? blob.pathname.split("/").pop() ?? blob.pathname;
+        const ext = (fileName.split(".").pop()?.toLowerCase() ?? "pdf") as "md" | "pdf";
+        const doc: ResearchDoc = {
+          id: crypto.randomUUID(),
+          name: fileName,
+          type: ext,
+          size: size ?? 0,
+          blobUrl: blob.url,
+          addedAt: Math.floor(Date.now() / 1000),
+        };
+        const docs = await getResearchDocs();
+        await setResearchDocs([doc, ...docs]);
+      },
+    });
+
+    return NextResponse.json(jsonResponse);
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
   }
-
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
-
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  if (ext !== "md" && ext !== "pdf") {
-    return NextResponse.json({ error: "Only .md and .pdf files are accepted" }, { status: 400 });
-  }
-
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File exceeds 4 MB limit" }, { status: 400 });
-  }
-
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const bytes = await file.arrayBuffer();
-  const content =
-    ext === "md" ? new TextDecoder().decode(bytes) : Buffer.from(bytes).toString("base64");
-
-  const doc: ResearchDoc = {
-    id,
-    name: file.name,
-    type: ext,
-    size: file.size,
-    addedAt: Math.floor(Date.now() / 1000)
-  };
-
-  await setResearchDocContent(id, content);
-  const docs = await getResearchDocs();
-  await setResearchDocs([doc, ...docs]);
-
-  return NextResponse.json(doc, { status: 201 });
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!(await assertAdmin())) {
+  if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id } = await request.json();
+  const { id } = await request.json() as { id: string };
   if (!id) return NextResponse.json({ error: "No id" }, { status: 400 });
 
   const docs = await getResearchDocs();
-  await setResearchDocs(docs.filter((d) => d.id !== id));
-  await deleteResearchDocContent(id);
+  const doc = docs.find((d) => d.id === id);
+  if (doc) {
+    await del(doc.blobUrl);
+    await setResearchDocs(docs.filter((d) => d.id !== id));
+  }
 
   return NextResponse.json({ ok: true });
 }
