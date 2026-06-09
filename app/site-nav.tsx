@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { HalfMoon, LogIn, SunLight } from "iconoir-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -51,12 +52,15 @@ export function SiteNav() {
             );
           })}
           {isAdmin ? (
-            <button className="theme-toggle" onClick={handleLogout} type="button">
-              logout
+            <button className="theme-toggle" onClick={handleLogout} type="button" aria-label="Logout">
+              <span className="icon-minus-badge">
+                <LogIn width={16} height={16} />
+                <span className="icon-minus" aria-hidden="true">−</span>
+              </span>
             </button>
           ) : (
-            <Link className={pathname === "/login" ? "active" : ""} href="/login">
-              login
+            <Link className={pathname === "/login" ? "active" : ""} href="/login" aria-label="Login">
+              <LogIn width={16} height={16} />
             </Link>
           )}
           <button
@@ -65,7 +69,7 @@ export function SiteNav() {
             onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
             type="button"
           >
-            {theme === "dark" ? "◐" : "●"}
+            {theme === "dark" ? <SunLight width={16} height={16} /> : <HalfMoon width={16} height={16} />}
           </button>
         </nav>
       </div>
