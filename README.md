@@ -4,37 +4,43 @@ A Vercel-native portfolio and research dashboard built around one question: **wh
 
 "The next semis" is a frame, not a target. The semiconductor boom of the 2010s-2020s is the historical anchor, but the hunt is for whatever comes next: power, memory, robotics, biotech compute, novel materials, or another physical constraint that is still underpriced.
 
+**Status: shipped. The codebase is complete.**
+
 ## What It Does
 
-- **Portfolio overview.** Current positions with quote refresh, day movers, cost basis, allocation, and PnL.
-- **Research watchlist.** Companies grouped by theme, conviction, and status, with conditions that would confirm or invalidate the thesis.
-- **Ticker deep-dives.** Per-ticker pages with current quote data, a TradingView Lightweight Charts candlestick pane, and entry conditions.
+- **Portfolio overview.** Current positions with live quote refresh, day movers, cost basis, and PnL.
+- **Sector allocation.** Bar chart on the portfolio page showing capital distribution by sector and watchlist theme coverage (watching vs. actually holding).
+- **Research watchlist.** Companies grouped by theme, conviction, and status — with entry conditions and a buy trigger field ("what would make me pull the trigger").
+- **Ticker deep-dives.** Per-ticker pages with live quote, price chart, entry conditions, buy trigger, reading list, news feed, and research docs.
+- **Reading list.** Saved articles and papers scoped to tickers or themes.
+- **Research docs.** PDF/markdown upload via Vercel Blob, accessible on the research page.
 
 ## Stack
 
-- **Next.js App Router + TypeScript** for a Vercel-first deployment path.
-- **Vercel Hobby** as the target hosting plan for a free personal project.
-- **Yahoo Finance endpoints** via server-side fetches and API routes.
-- **Zod** for validating local JSON data before the UI uses it.
-- **TradingView Lightweight Charts** for financial-native chart rendering.
-- **Plain CSS design tokens** for the current monochrome/amber visual system.
+- **Next.js App Router + TypeScript** — Vercel-first.
+- **Vercel Hobby** — hosting target.
+- **Yahoo Finance** — quote, history, news via server-side fetches and API routes.
+- **Upstash Redis** — persisted writes (watchlist edits, reading list, research docs). Local JSON fallback for dev.
+- **Zod** — validates all JSON data before the UI touches it.
+- **TradingView Lightweight Charts** — financial-native chart rendering.
+- **Plain CSS design tokens** — monochrome visual system, dark/light theme toggle.
 
-The previous Phoenix LiveView implementation is preserved in `archived/phoenix-liveview/` and on the Git branch `archived`.
+The previous Phoenix LiveView implementation is preserved on branch `archived`.
 
-## Running It
+## Running Locally
 
 ```sh
 npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000`.
+Open `http://localhost:3000`. Admin features require the env vars below.
 
-## First Deploy
+## Environment Variables
 
-Import `main` into Vercel as a Next.js project, then set these production environment variables:
+Required in production:
 
-```sh
+```
 ADMIN_USERNAME
 ADMIN_PASSWORD
 JWT_SECRET
@@ -42,10 +48,10 @@ UPSTASH_REDIS_REST_URL
 UPSTASH_REDIS_REST_TOKEN
 ```
 
-Upstash Redis is required on Vercel for persisted edits and production login rate limiting. Without it, production write paths fail closed by design.
+Upstash Redis is mandatory on Vercel — without it, all write paths fail closed by design.
 
-Optional: set `BRANDFETCH_API_KEY` to enable Brandfetch Brand API as a structured brand-color fallback when public website detection fails. The app still deploys without it and returns honest neutral colors.
+Optional:
 
-## Status
-
-The Next.js/Vercel migration is complete and the app is ready for first Vercel deployment testing. The next planned feature work is structured research evidence scoring.
+```
+BRANDFETCH_API_KEY   # vendor fallback for brand colors when public detection fails
+```
