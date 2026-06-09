@@ -751,6 +751,16 @@ ol {
   color: var(--color-neutral);
 }
 
+.reading-badge.pdf {
+  border-color: var(--color-loss);
+  color: var(--color-loss);
+}
+
+.reading-badge.md {
+  border-color: var(--color-grid);
+  color: var(--color-neutral);
+}
+
 .reading-title {
   color: var(--color-fg);
   font-size: 13px;

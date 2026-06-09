@@ -78,3 +78,11 @@ export type SavedItem = {
   tickers: string[];
   addedAt: number;
 };
+
+export type ResearchDoc = {
+  id: string;
+  name: string;
+  type: "md" | "pdf";
+  size: number;
+  addedAt: number;
+};

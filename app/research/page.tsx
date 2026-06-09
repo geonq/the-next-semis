@@ -1,9 +1,10 @@
 import { cookies } from "next/headers";
 import { ResearchClient } from "@/components/research-client";
+import { ResearchDocs } from "@/components/research-docs";
 import { ThesisEditor } from "@/components/thesis-editor";
 import { verifySession } from "@/lib/auth";
 import { trackedTickers } from "@/lib/data";
-import { getPositions, getSavedItems, getThesis, getWatchlist } from "@/lib/kv";
+import { getPositions, getResearchDocs, getSavedItems, getThesis, getWatchlist } from "@/lib/kv";
 import { fetchQuotes } from "@/lib/market";
 import { themes } from "@/lib/research";
 
@@ -14,11 +15,12 @@ export default async function ResearchPage() {
   const token = cookieStore.get("session")?.value;
   const isAdmin = token ? await verifySession(token) : false;
 
-  const [positions, watchlist, thesis, savedItems] = await Promise.all([
+  const [positions, watchlist, thesis, savedItems, researchDocs] = await Promise.all([
     getPositions(),
     getWatchlist(),
     getThesis(),
-    getSavedItems()
+    getSavedItems(),
+    getResearchDocs()
   ]);
   const tickers = trackedTickers(positions, watchlist);
   const quotes = await fetchQuotes(tickers);
@@ -33,6 +35,8 @@ export default async function ResearchPage() {
         isAdmin={isAdmin}
         savedItems={savedItems}
       />
+
+      <ResearchDocs docs={researchDocs} isAdmin={isAdmin} />
 
       <ThesisEditor markdown={thesis} isAdmin={isAdmin} />
     </div>
