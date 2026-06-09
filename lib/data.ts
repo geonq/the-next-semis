@@ -21,7 +21,8 @@ export const watchlistSchema = z.object({
   conditions: z.array(z.string()),
   conviction: z.string().min(1),
   status: z.string().min(1),
-  brandColor: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().default(null)
+  brandColor: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().default(null),
+  buyTrigger: z.string().max(500).optional()
 }).transform((entry) => ({
   ...entry,
   assetType: entry.assetType ?? "equity",

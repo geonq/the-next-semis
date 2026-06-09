@@ -16,5 +16,5 @@ export default async function PortfolioPage() {
   const tickers = trackedTickers(positions, watchlist);
   const quotes = await fetchQuotes(tickers);
 
-  return <PortfolioClient positions={positions} initialQuotes={quotes} tickers={tickers} isAdmin={isAdmin} />;
+  return <PortfolioClient positions={positions} initialQuotes={quotes} tickers={tickers} watchlist={watchlist} isAdmin={isAdmin} />;
 }

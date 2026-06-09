@@ -73,6 +73,7 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
         conviction={entry.conviction}
         status={entry.status}
         conditions={entry.conditions}
+        buyTrigger={entry.buyTrigger}
         isAdmin={isAdmin}
       />
 

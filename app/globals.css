@@ -1130,6 +1130,52 @@ ol {
   outline: none;
 }
 
+.alloc-list {
+  display: grid;
+  gap: 14px;
+}
+
+.alloc-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 140px 1fr 36px;
+}
+
+.alloc-label {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alloc-bar-track {
+  background: var(--color-grid);
+  border-radius: 2px;
+  height: 4px;
+  overflow: hidden;
+}
+
+.alloc-bar-fill {
+  background: var(--color-accent);
+  border-radius: 2px;
+  height: 100%;
+  min-width: 2px;
+  transition: width 300ms ease;
+}
+
+.alloc-pct {
+  font-size: 12px;
+  text-align: right;
+}
+
+.buy-trigger {
+  color: var(--color-fg);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
 @media (max-width: 760px) {
   .app-header-inner,
   .shell {

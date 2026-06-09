@@ -21,7 +21,8 @@ const updateSchema = z.object({
   theme: z.string().min(1).max(100).optional(),
   conditions: z.array(z.string().max(500)).max(50).optional(),
   conviction: z.enum(["draft", "medium", "high"]).optional(),
-  status: z.enum(["watching", "triggered", "invalidated"]).optional()
+  status: z.enum(["watching", "triggered", "invalidated"]).optional(),
+  buyTrigger: z.string().max(500).optional()
 });
 
 const refreshColorsSchema = z.object({
@@ -77,6 +78,7 @@ export async function PUT(request: Request) {
     conditions: parsed.data.conditions ?? current.conditions,
     conviction: parsed.data.conviction ?? current.conviction,
     status: parsed.data.status ?? current.status,
+    buyTrigger: parsed.data.buyTrigger !== undefined ? parsed.data.buyTrigger || undefined : current.buyTrigger,
     assetType: current.assetType,
     brandColor: current.brandColor
   };

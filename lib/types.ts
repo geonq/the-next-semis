@@ -17,6 +17,7 @@ export type WatchlistEntry = {
   conviction: string;
   status: string;
   brandColor: string | null;
+  buyTrigger?: string;
 };
 
 export type Quote = {

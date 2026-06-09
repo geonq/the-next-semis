@@ -11,12 +11,14 @@ export function TickerStateEditor({
   conviction,
   status,
   conditions,
+  buyTrigger,
   isAdmin
 }: {
   ticker: string;
   conviction: string;
   status: string;
   conditions: string[];
+  buyTrigger?: string;
   isAdmin: boolean;
 }) {
   const router = useRouter();
@@ -24,6 +26,7 @@ export function TickerStateEditor({
   const [conv, setConv] = useState(conviction);
   const [stat, setStat] = useState(status);
   const [conds, setConds] = useState(conditions.join("\n"));
+  const [trigger, setTrigger] = useState(buyTrigger ?? "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -31,6 +34,7 @@ export function TickerStateEditor({
     setConv(conviction);
     setStat(status);
     setConds(conditions.join("\n"));
+    setTrigger(buyTrigger ?? "");
     setError("");
     setEditing(false);
   }
@@ -48,7 +52,8 @@ export function TickerStateEditor({
         conditions: conds
           .split("\n")
           .map((line) => line.trim())
-          .filter(Boolean)
+          .filter(Boolean),
+        buyTrigger: trigger.trim()
       })
     });
     setSaving(false);
@@ -93,6 +98,17 @@ export function TickerStateEditor({
             value={conds}
             onChange={(e) => setConds(e.target.value)}
           />
+        </div>
+
+        <div>
+          <p className="section-label">Buy Trigger</p>
+          <textarea
+            className="add-input add-textarea"
+            rows={3}
+            placeholder="What would make you pull the trigger?"
+            value={trigger}
+            onChange={(e) => setTrigger(e.target.value)}
+          />
           {error ? <p className="loss">{error}</p> : null}
           <div className="add-actions">
             <button className="add-btn" disabled={saving} onClick={save} type="button">
@@ -136,6 +152,13 @@ export function TickerStateEditor({
           ))}
         </ul>
       </div>
+
+      {buyTrigger ? (
+        <div>
+          <p className="section-label">Buy Trigger</p>
+          <p className="buy-trigger">{buyTrigger}</p>
+        </div>
+      ) : null}
     </section>
   );
 }
