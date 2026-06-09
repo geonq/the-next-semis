@@ -65,3 +65,4 @@ Coordination/
 # Archived Phoenix/Elixir dashboard — preserved on branch `archived`, not on main
 archived/
 .vercel
+.env*
