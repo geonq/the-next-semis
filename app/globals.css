@@ -1633,6 +1633,31 @@ ol {
   .discovery-intel-reaction {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .research-toolbar,
+  .reading-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .research-card {
+    min-height: 0;
+    padding: 18px 16px;
+  }
+
+  .reading-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .save-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .save-url,
+  .save-title,
+  .save-theme {
+    grid-column: auto;
+  }
 }
 
 /* ── Discovery Intel Panel ── */
