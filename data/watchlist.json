@@ -2,6 +2,7 @@
   {
     "ticker": "PURR",
     "company": "Hyperliquid Strategies Inc",
+    "assetType": "equity",
     "theme": "Decentralized Exchange",
     "conditions": [
       "hello",
@@ -9,126 +10,165 @@
       "hyperchain go brr"
     ],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "AMD",
     "company": "Advanced Micro Devices, Inc.",
+    "assetType": "equity",
     "theme": "Semiconductors & Such",
     "conditions": [
       "- indeed"
     ],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "RHM.DE",
     "company": "Rheinmetall AG",
+    "assetType": "equity",
     "theme": "Defense",
     "conditions": [
       "ww3 breaks out",
       "idk some else"
     ],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "LMT",
     "company": "Lockheed Martin Corporation",
+    "assetType": "equity",
     "theme": "Defense",
     "conditions": [
       "its lockheed..."
     ],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "PLTR",
     "company": "Palantir Technologies Inc.",
+    "assetType": "equity",
     "theme": "Defense",
     "conditions": [
       "all hail palantir"
     ],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "NVDA",
     "company": "NVIDIA Corporation",
+    "assetType": "equity",
     "theme": "Semiconductors & Such",
     "conditions": [
       "jensen huang"
     ],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "RTX",
     "company": "RTX Corporation",
+    "assetType": "equity",
     "theme": "Defense",
     "conditions": [],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "PFE",
     "company": "Pfizer, Inc.",
+    "assetType": "equity",
     "theme": "Big Pharma",
     "conditions": [
       "evil microchip corp"
     ],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "CRSP",
     "company": "CRISPR Therapeutics AG",
+    "assetType": "equity",
     "theme": "Big Pharma",
     "conditions": [
       "gene editing"
     ],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "META",
     "company": "Meta Platforms, Inc.",
+    "assetType": "equity",
     "theme": "Big Pharma",
     "conditions": [
       "ig and facebook are cool, but",
       "these mfs tryna do neuralink shi"
     ],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "TSLA",
     "company": "Tesla, Inc.",
+    "assetType": "equity",
     "theme": "Energy Storage",
     "conditions": [
       "car batteries may turn into power grids"
     ],
     "conviction": "draft",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "1211.HK",
     "company": "BYD Company",
+    "assetType": "equity",
     "theme": "Energy Storage",
     "conditions": [
       "just like tesla"
     ],
     "conviction": "medium",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
   },
   {
     "ticker": "FLNC",
     "company": "Fluence Energy, Inc.",
+    "assetType": "equity",
     "theme": "Energy Storage",
     "conditions": [
       "interesting"
     ],
     "conviction": "high",
-    "status": "watching"
+    "status": "watching",
+    "brandColor": null
+  },
+  {
+    "ticker": "LHX",
+    "company": "L3Harris Technologies, Inc.",
+    "assetType": "equity",
+    "theme": "Defense & Drone Systems",
+    "conditions": [
+      "Discovery score 93/100 from 5 evidence item(s).",
+      "Review risk: Market cap unavailable",
+      "Review risk: Volume unavailable"
+    ],
+    "conviction": "draft",
+    "status": "watching",
+    "brandColor": "#f0000a"
   }
 ]
