@@ -16,6 +16,13 @@ describe("write middleware", () => {
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
   });
 
+  it("blocks discovery scans without a valid session", async () => {
+    const response = await middleware(new NextRequest("https://app.test/api/discovery-scan", { method: "POST" }));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+  });
+
   it("allows write requests with a valid session and all read requests", async () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("JWT_SECRET", "unit-test-secret");

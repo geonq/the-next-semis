@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { ResearchClient } from "@/components/research-client";
 import { ResearchDocs } from "@/components/research-docs";
+import { SectorDiscovery } from "@/components/sector-discovery";
 import { ThesisEditor } from "@/components/thesis-editor";
 import { verifySession } from "@/lib/auth";
 import { trackedTickers } from "@/lib/data";
@@ -35,6 +36,8 @@ export default async function ResearchPage() {
         isAdmin={isAdmin}
         savedItems={savedItems}
       />
+
+      {isAdmin ? <SectorDiscovery /> : null}
 
       <ResearchDocs docs={researchDocs} isAdmin={isAdmin} />
 

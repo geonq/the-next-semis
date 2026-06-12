@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchHistory, fetchQuotes, historyRanges, isValidTicker, MAX_QUOTE_SYMBOLS, MAX_SEARCH_QUERY } from "@/lib/market";
+import {
+  fetchHistory,
+  fetchQuoteDetails,
+  fetchQuotes,
+  historyRanges,
+  isValidTicker,
+  MAX_QUOTE_SYMBOLS,
+  MAX_SEARCH_QUERY
+} from "@/lib/market";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -67,5 +75,87 @@ describe("market data helpers", () => {
     );
 
     await expect(fetchHistory("NVDA", "10y")).resolves.toEqual([{ time: 1, open: 10, high: 12, low: 9, close: 11 }]);
+  });
+
+  it("normalizes quote detail fields for discovery scans", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        quoteResponse: {
+          result: [
+            {
+              symbol: "AVAV",
+              longName: "AeroVironment, Inc.",
+              quoteType: "EQUITY",
+              fullExchangeName: "Nasdaq",
+              regularMarketPrice: 200,
+              marketCap: 4_000_000_000,
+              regularMarketVolume: 800_000,
+              averageDailyVolume3Month: 700_000
+            }
+          ]
+        }
+      })
+    );
+
+    await expect(fetchQuoteDetails(["AVAV"])).resolves.toEqual({
+      AVAV: {
+        ticker: "AVAV",
+        company: "AeroVironment, Inc.",
+        quoteType: "EQUITY",
+        exchange: "Nasdaq",
+        price: 200,
+        marketCap: 4_000_000_000,
+        trailingRevenue: null,
+        trailingNetIncome: null,
+        volume: 800_000,
+        averageVolume: 700_000
+      }
+    });
+  });
+
+  it("estimates missing market cap from quote summary shares outstanding", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({
+          quoteResponse: {
+            result: [
+              {
+                symbol: "TEST",
+                longName: "Test Defense Inc.",
+                quoteType: "EQUITY",
+                fullExchangeName: "Nasdaq",
+                regularMarketPrice: 20,
+                marketCap: null,
+                regularMarketVolume: 500_000,
+                averageDailyVolume3Month: 450_000
+              }
+            ]
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          quoteSummary: {
+            result: [
+              {
+                price: { regularMarketPrice: { raw: 20 } },
+                defaultKeyStatistics: { sharesOutstanding: { raw: 100_000_000 } },
+                financialData: {
+                  totalRevenue: { raw: 250_000_000 },
+                  netIncomeToCommon: { raw: 50_000_000 }
+                }
+              }
+            ]
+          }
+        })
+      );
+
+    await expect(fetchQuoteDetails(["TEST"])).resolves.toMatchObject({
+      TEST: {
+        marketCap: 2_000_000_000,
+        trailingRevenue: 250_000_000,
+        trailingNetIncome: 50_000_000
+      }
+    });
   });
 });

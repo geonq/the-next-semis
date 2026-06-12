@@ -31,6 +31,24 @@ const quoteResponseSchema = z.object({
   })
 });
 
+const quoteDetailResultSchema = quoteResultSchema.extend({
+  shortName: z.string().nullable().optional(),
+  longName: z.string().nullable().optional(),
+  quoteType: z.string().nullable().optional(),
+  exchange: z.string().nullable().optional(),
+  exchDisp: z.string().nullable().optional(),
+  fullExchangeName: z.string().nullable().optional(),
+  marketCap: z.number().nullable().optional(),
+  regularMarketVolume: z.number().nullable().optional(),
+  averageDailyVolume3Month: z.number().nullable().optional()
+});
+
+const quoteDetailResponseSchema = z.object({
+  quoteResponse: z.object({
+    result: z.array(quoteDetailResultSchema)
+  })
+});
+
 const chartResponseSchema = z.object({
   chart: z.object({
     result: z.array(z.any()).nullable()
@@ -62,6 +80,155 @@ export async function fetchQuotes(tickers: string[]): Promise<QuotesByTicker> {
   if (!json.success) return {};
 
   return Object.fromEntries(json.data.quoteResponse.result.map((raw) => [raw.symbol, normalizeQuote(raw)]));
+}
+
+export type QuoteDetail = {
+  ticker: string;
+  company: string;
+  quoteType: string | null;
+  exchange: string | null;
+  price: number | null;
+  marketCap: number | null;
+  trailingRevenue: number | null;
+  trailingNetIncome: number | null;
+  volume: number | null;
+  averageVolume: number | null;
+};
+
+export async function fetchQuoteDetails(tickers: string[]): Promise<Record<string, QuoteDetail>> {
+  const symbols = Array.from(new Set(tickers.filter(isValidTicker))).slice(0, MAX_QUOTE_SYMBOLS);
+  if (symbols.length === 0) return {};
+
+  const params = new URLSearchParams({
+    symbols: symbols.join(","),
+    fields: [
+      "shortName",
+      "longName",
+      "quoteType",
+      "exchange",
+      "exchDisp",
+      "fullExchangeName",
+      "regularMarketPrice",
+      "marketCap",
+      "regularMarketVolume",
+      "averageDailyVolume3Month"
+    ].join(",")
+  });
+
+  const response = await fetch(`${yahooBase}/v7/finance/quote?${params}`, {
+    headers: { "user-agent": "Mozilla/5.0" },
+    next: { revalidate: 120 }
+  });
+
+  if (!response.ok) return {};
+
+  const json = quoteDetailResponseSchema.safeParse(await response.json());
+  if (!json.success) return {};
+
+  const base: Record<string, QuoteDetail> = Object.fromEntries(
+    json.data.quoteResponse.result.map((raw) => [
+      raw.symbol,
+      {
+        ticker: raw.symbol,
+        company: raw.longName ?? raw.shortName ?? raw.symbol,
+        quoteType: raw.quoteType ?? null,
+        exchange: raw.fullExchangeName ?? raw.exchDisp ?? raw.exchange ?? null,
+        price: raw.regularMarketPrice ?? null,
+        marketCap: raw.marketCap ?? null,
+        trailingRevenue: null,
+        trailingNetIncome: null,
+        volume: raw.regularMarketVolume ?? null,
+        averageVolume: raw.averageDailyVolume3Month ?? null
+      }
+    ])
+  );
+  const missing = symbols.filter((symbol) => !base[symbol]);
+  const missingFromChart = await Promise.all(missing.map(fetchChartQuoteDetail));
+  for (const detail of missingFromChart) {
+    if (detail) base[detail.ticker] = detail;
+  }
+
+  const enriched = await Promise.all(Object.values(base).map(enrichQuoteDetail));
+  return Object.fromEntries(enriched.map((detail) => [detail.ticker, detail]));
+}
+
+async function enrichQuoteDetail(detail: QuoteDetail): Promise<QuoteDetail> {
+  if (detail.marketCap != null && detail.trailingRevenue != null && detail.trailingNetIncome != null) return detail;
+  try {
+    const params = new URLSearchParams({ modules: "price,financialData,defaultKeyStatistics,summaryDetail" });
+    const response = await fetch(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(detail.ticker)}?${params}`, {
+      headers: { "user-agent": "Mozilla/5.0" },
+      next: { revalidate: 300 }
+    });
+    if (!response.ok) return enrichQuoteDetailFromChart(detail);
+    const data = await response.json();
+    const result = data?.quoteSummary?.result?.[0] ?? {};
+    const sharesOutstanding = rawNumber(result?.defaultKeyStatistics?.sharesOutstanding)
+      ?? rawNumber(result?.summaryDetail?.sharesOutstanding);
+    const price = detail.price ?? rawNumber(result?.price?.regularMarketPrice);
+    const estimatedMarketCap = sharesOutstanding != null && price != null ? sharesOutstanding * price : null;
+    return {
+      ...detail,
+      price,
+      marketCap: detail.marketCap ?? rawNumber(result?.price?.marketCap) ?? estimatedMarketCap,
+      trailingRevenue: detail.trailingRevenue ?? rawNumber(result?.financialData?.totalRevenue),
+      trailingNetIncome:
+        detail.trailingNetIncome
+        ?? rawNumber(result?.defaultKeyStatistics?.netIncomeToCommon)
+        ?? rawNumber(result?.financialData?.netIncomeToCommon)
+    };
+  } catch {
+    return enrichQuoteDetailFromChart(detail);
+  }
+}
+
+async function enrichQuoteDetailFromChart(detail: QuoteDetail): Promise<QuoteDetail> {
+  const chartDetail = await fetchChartQuoteDetail(detail.ticker);
+  if (!chartDetail) return detail;
+  return {
+    ...detail,
+    company: detail.company || chartDetail.company,
+    exchange: detail.exchange ?? chartDetail.exchange,
+    price: detail.price ?? chartDetail.price,
+    marketCap: detail.marketCap ?? chartDetail.marketCap,
+    trailingNetIncome: detail.trailingNetIncome ?? chartDetail.trailingNetIncome,
+    volume: detail.volume ?? chartDetail.volume,
+    averageVolume: detail.averageVolume ?? chartDetail.averageVolume
+  };
+}
+
+async function fetchChartQuoteDetail(ticker: string): Promise<QuoteDetail | null> {
+  try {
+    const response = await fetch(`${yahooBase}/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`, {
+      headers: { "user-agent": "Mozilla/5.0" },
+      next: { revalidate: 300 }
+    });
+    if (!response.ok) return null;
+    const json = chartResponseSchema.safeParse(await response.json());
+    const meta = json.success ? json.data.chart.result?.[0]?.meta : null;
+    if (!meta) return null;
+    const symbol = typeof meta.symbol === "string" ? meta.symbol : ticker;
+    return {
+      ticker: symbol,
+      company: typeof meta.longName === "string" ? meta.longName : typeof meta.shortName === "string" ? meta.shortName : symbol,
+      quoteType: typeof meta.instrumentType === "string" ? meta.instrumentType : null,
+      exchange: typeof meta.fullExchangeName === "string" ? meta.fullExchangeName : typeof meta.exchangeName === "string" ? meta.exchangeName : null,
+      price: numberOrNull(meta.regularMarketPrice),
+      marketCap: numberOrNull(meta.marketCap),
+      trailingRevenue: null,
+      trailingNetIncome: null,
+      volume: numberOrNull(meta.regularMarketVolume),
+      averageVolume: numberOrNull(meta.averageDailyVolume3Month)
+    };
+  } catch {
+    return null;
+  }
+}
+
+function rawNumber(value: unknown): number | null {
+  if (typeof value === "number") return value;
+  if (value && typeof value === "object" && typeof (value as { raw?: unknown }).raw === "number") return (value as { raw: number }).raw;
+  return null;
 }
 
 export async function fetchHistory(ticker: string, range = "1mo"): Promise<Candle[]> {

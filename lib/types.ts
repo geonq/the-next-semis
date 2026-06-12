@@ -69,6 +69,94 @@ export type NewsItem = {
   publishedAt: number;
 };
 
+export type DiscoveryNewsRef = {
+  title: string;
+  url: string;
+  domain: string;
+  publishedAt: number | null;
+};
+
+export type DiscoveryEvidence = {
+  title: string;
+  url: string;
+  domain: string;
+  publishedAt: number | null;
+  sourceCountry?: string;
+  extractedValue: number | null;
+  extractedValueLabel: string | null;
+  catalystScore: number;
+  sourceScore: number;
+  riskScore: number;
+  matchedTerms: string[];
+  riskTerms: string[];
+};
+
+export type DiscoveryMateriality = {
+  contractValue: number | null;
+  contractValueLabel: string | null;
+  score: number;
+  contractToMarketCapPercent: number | null;
+  contractToRevenuePercent: number | null;
+  contractToNetIncomePercent: number | null;
+  confidence: "low" | "medium" | "high";
+  flags: string[];
+};
+
+export type DiscoveryLag = {
+  score: number;
+  catalystDate: number | null;
+  daysSinceCatalyst: number | null;
+  eventWindowDays: number;
+  benchmarkWindowDays: number;
+  postEventMovePercent: number | null;
+  postEventAvgDailyMovePercent: number | null;
+  currentMoveSinceCatalystPercent: number | null;
+  currentAvgDailyMovePercent: number | null;
+  baselineAvgDailyMovePercent: number | null;
+  excessMovePercent: number | null;
+  hiddenMovePercent: number | null;
+  verdict: "hidden" | "declined" | "reacted" | "reacted_still_interesting" | "too_early" | "unknown";
+  explanation: string;
+};
+
+export type DiscoveryResult = {
+  ticker: string;
+  company: string;
+  exchange: string | null;
+  discoveryScore: number;
+  catalystScore: number;
+  lagScore: number;
+  lag: DiscoveryLag;
+  riskScore: number;
+  priceChange5d: number | null;
+  priceChange1mo: number | null;
+  marketCap: number | null;
+  trailingRevenue: number | null;
+  trailingNetIncome: number | null;
+  volume: number | null;
+  materiality: DiscoveryMateriality;
+  riskFlags: string[];
+  tradabilityFlags: string[];
+  evidence: DiscoveryEvidence[];
+  badNews?: DiscoveryNewsRef[];
+};
+
+export type DiscoveryScanResponse = {
+  sector: string;
+  sectorName: string;
+  scannedAt: number;
+  sources: string[];
+  results: DiscoveryResult[];
+  debug?: {
+    articles: number;
+    resolved: number;
+    grouped: number;
+    sampleTitles?: string[];
+    sampleTickers?: string[];
+  };
+  error?: string;
+};
+
 export type SavedItem = {
   id: string;
   type: "article" | "paper";
