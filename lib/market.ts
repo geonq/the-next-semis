@@ -3,6 +3,60 @@ import type { Candle, NewsItem, Quote, QuotesByTicker } from "./types";
 
 const yahooBase = "https://query1.finance.yahoo.com";
 
+// --- Yahoo crumb auth ---
+// Yahoo v7/v10 endpoints require a session cookie + matching crumb since 2024.
+// We fetch both once and cache in module-level state (survives warm requests in dev;
+// cold-starts in Vercel serverless refetch, which is acceptable for admin-only scans).
+type YahooAuth = { cookie: string; crumb: string; ts: number };
+let _yahooAuth: YahooAuth | null = null;
+
+async function getYahooAuth(): Promise<YahooAuth | null> {
+  if (_yahooAuth && Date.now() - _yahooAuth.ts < 30 * 60 * 1000) return _yahooAuth;
+  try {
+    const pageRes = await fetch("https://finance.yahoo.com/", {
+      headers: {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9"
+      },
+      redirect: "follow",
+      cache: "no-store"
+    });
+    const rawCookies = pageRes.headers.getSetCookie?.() ?? [];
+    const a1 = rawCookies.map((c) => c.split(";")[0]).find((c) => c.startsWith("A1="));
+    if (!a1) return null;
+
+    const crumbRes = await fetch(`${yahooBase}/v1/test/getcrumb`, {
+      headers: {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "cookie": a1,
+        "accept": "*/*",
+        "referer": "https://finance.yahoo.com/"
+      },
+      cache: "no-store"
+    });
+    if (!crumbRes.ok) return null;
+    const crumb = (await crumbRes.text()).trim();
+    if (crumb.length < 3 || crumb.includes("<")) return null;
+
+    _yahooAuth = { cookie: a1, crumb, ts: Date.now() };
+    return _yahooAuth;
+  } catch {
+    return null;
+  }
+}
+
+function yahooHeaders(auth: YahooAuth | null): Record<string, string> {
+  return auth
+    ? { "user-agent": "Mozilla/5.0", "cookie": auth.cookie }
+    : { "user-agent": "Mozilla/5.0" };
+}
+
+function withCrumb(url: string, auth: YahooAuth | null): string {
+  if (!auth) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}crumb=${encodeURIComponent(auth.crumb)}`;
+}
+
 // Public read APIs are unauthenticated. Validate ticker shape and clamp counts at the
 // route boundary so a crafted request can't fan out into unbounded Yahoo fetches on a
 // free Vercel deploy. Yahoo symbols use letters/digits plus `.` (RHM.DE), `-` (BRK-B),
@@ -115,37 +169,50 @@ export async function fetchQuoteDetails(tickers: string[]): Promise<Record<strin
     ].join(",")
   });
 
-  const response = await fetch(`${yahooBase}/v7/finance/quote?${params}`, {
-    headers: { "user-agent": "Mozilla/5.0" },
-    next: { revalidate: 120 }
-  });
+  const base: Record<string, QuoteDetail> = {};
 
-  if (!response.ok) return {};
-
-  const json = quoteDetailResponseSchema.safeParse(await response.json());
-  if (!json.success) return {};
-
-  const base: Record<string, QuoteDetail> = Object.fromEntries(
-    json.data.quoteResponse.result.map((raw) => [
-      raw.symbol,
-      {
-        ticker: raw.symbol,
-        company: raw.longName ?? raw.shortName ?? raw.symbol,
-        quoteType: raw.quoteType ?? null,
-        exchange: raw.fullExchangeName ?? raw.exchDisp ?? raw.exchange ?? null,
-        price: raw.regularMarketPrice ?? null,
-        marketCap: raw.marketCap ?? null,
-        trailingRevenue: null,
-        trailingNetIncome: null,
-        volume: raw.regularMarketVolume ?? null,
-        averageVolume: raw.averageDailyVolume3Month ?? null
+  // Attempt Yahoo v7 with crumb auth. On any failure, fall through — chart fills the gap.
+  try {
+    const auth = await getYahooAuth();
+    const response = await fetch(withCrumb(`${yahooBase}/v7/finance/quote?${params}`, auth), {
+      headers: yahooHeaders(auth),
+      next: { revalidate: 120 }
+    });
+    if (response.ok) {
+      const json = quoteDetailResponseSchema.safeParse(await response.json());
+      if (json.success) {
+        for (const raw of json.data.quoteResponse.result) {
+          base[raw.symbol] = {
+            ticker: raw.symbol,
+            company: raw.longName ?? raw.shortName ?? raw.symbol,
+            quoteType: raw.quoteType ?? null,
+            exchange: raw.fullExchangeName ?? raw.exchDisp ?? raw.exchange ?? null,
+            price: raw.regularMarketPrice ?? null,
+            marketCap: raw.marketCap ?? null,
+            trailingRevenue: null,
+            trailingNetIncome: null,
+            volume: raw.regularMarketVolume ?? null,
+            averageVolume: raw.averageDailyVolume3Month ?? null
+          };
+        }
       }
-    ])
-  );
-  const missing = symbols.filter((symbol) => !base[symbol]);
-  const missingFromChart = await Promise.all(missing.map(fetchChartQuoteDetail));
-  for (const detail of missingFromChart) {
+    } else if (response.status === 401 || response.status === 429) {
+      _yahooAuth = null;
+    }
+  } catch {}
+
+  // Chart fallback: fetch for every ticker not already populated from v7.
+  const needChart = symbols.filter((s) => !base[s]);
+  const chartResults = await Promise.all(needChart.map(fetchChartQuoteDetail));
+  for (const detail of chartResults) {
     if (detail) base[detail.ticker] = detail;
+  }
+
+  // Skeleton: ensure every requested ticker has at least a minimal entry so FMP can enrich it.
+  for (const symbol of symbols) {
+    if (!base[symbol]) {
+      base[symbol] = { ticker: symbol, company: symbol, quoteType: null, exchange: null, price: null, marketCap: null, trailingRevenue: null, trailingNetIncome: null, volume: null, averageVolume: null };
+    }
   }
 
   // Sequential with pacing — avoids bursting Yahoo's quoteSummary endpoint.
@@ -161,19 +228,24 @@ export async function fetchQuoteDetails(tickers: string[]): Promise<Record<strin
 async function enrichQuoteDetail(detail: QuoteDetail): Promise<QuoteDetail> {
   if (detail.marketCap != null && detail.trailingRevenue != null && detail.trailingNetIncome != null) return detail;
   try {
+    const auth = await getYahooAuth();
     const params = new URLSearchParams({ modules: "price,financialData,defaultKeyStatistics,summaryDetail" });
-    const response = await fetch(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(detail.ticker)}?${params}`, {
-      headers: { "user-agent": "Mozilla/5.0" },
+    const url = withCrumb(`${yahooBase}/v10/finance/quoteSummary/${encodeURIComponent(detail.ticker)}?${params}`, auth);
+    const response = await fetch(url, {
+      headers: yahooHeaders(auth),
       next: { revalidate: 300 }
     });
-    if (!response.ok) return enrichQuoteDetailFromChart(detail);
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 429) _yahooAuth = null;
+      return enrichQuoteDetailFromChart(detail);
+    }
     const data = await response.json();
     const result = data?.quoteSummary?.result?.[0] ?? {};
     const sharesOutstanding = rawNumber(result?.defaultKeyStatistics?.sharesOutstanding)
       ?? rawNumber(result?.summaryDetail?.sharesOutstanding);
     const price = detail.price ?? rawNumber(result?.price?.regularMarketPrice);
     const estimatedMarketCap = sharesOutstanding != null && price != null ? sharesOutstanding * price : null;
-    return {
+    const enriched: QuoteDetail = {
       ...detail,
       price,
       marketCap: detail.marketCap ?? rawNumber(result?.price?.marketCap) ?? estimatedMarketCap,
@@ -183,6 +255,11 @@ async function enrichQuoteDetail(detail: QuoteDetail): Promise<QuoteDetail> {
         ?? rawNumber(result?.defaultKeyStatistics?.netIncomeToCommon)
         ?? rawNumber(result?.financialData?.netIncomeToCommon)
     };
+    if (enriched.marketCap == null) {
+      const chartDetail = await fetchChartQuoteDetail(detail.ticker);
+      if (chartDetail?.marketCap != null) enriched.marketCap = chartDetail.marketCap;
+    }
+    return enriched;
   } catch {
     return enrichQuoteDetailFromChart(detail);
   }
@@ -237,33 +314,43 @@ function rawNumber(value: unknown): number | null {
   return null;
 }
 
+// FMP stable/profile returns an array of profile objects.
+// The exact field name for market cap varies by endpoint version — accept both.
 const fmpProfileSchema = z.array(
   z.object({
-    mktCap: z.number().nullable().optional(),
-    revenue: z.number().nullable().optional(),
-    netIncome: z.number().nullable().optional()
+    marketCap: z.number().nullable().optional(),
+    mktCap: z.number().nullable().optional()
   })
 );
 
-async function fetchFmpProfile(ticker: string): Promise<{ marketCap: number | null; trailingRevenue: number | null; trailingNetIncome: number | null }> {
-  const empty = { marketCap: null, trailingRevenue: null, trailingNetIncome: null };
+async function fetchFmpProfile(ticker: string): Promise<{ marketCap: number | null }> {
+  const empty = { marketCap: null };
   const apiKey = process.env.FMP_API_KEY;
   if (!apiKey) return empty;
   try {
     const response = await fetch(
-      `https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(ticker)}?apikey=${encodeURIComponent(apiKey)}`,
-      { headers: { "user-agent": "Mozilla/5.0" }, next: { revalidate: 3600 } }
+      `https://financialmodelingprep.com/stable/profile?symbol=${encodeURIComponent(ticker)}&apikey=${encodeURIComponent(apiKey)}`,
+      { headers: { "user-agent": "Mozilla/5.0" }, cache: "no-store" }
     );
-    if (!response.ok) return empty;
-    const parsed = fmpProfileSchema.safeParse(await response.json());
-    if (!parsed.success || parsed.data.length === 0) return empty;
-    const p = parsed.data[0];
-    return {
-      marketCap: p.mktCap ?? null,
-      trailingRevenue: p.revenue ?? null,
-      trailingNetIncome: p.netIncome ?? null
-    };
-  } catch {
+    if (!response.ok) {
+      console.error(`[FMP] ${ticker} HTTP ${response.status}`);
+      return empty;
+    }
+    const raw = await response.json();
+    const parsed = fmpProfileSchema.safeParse(raw);
+    if (!parsed.success || parsed.data.length === 0) {
+      // Log first item keys so we know what FMP actually returned
+      if (Array.isArray(raw) && raw.length > 0) {
+        console.error(`[FMP] ${ticker} schema mismatch — keys: ${Object.keys(raw[0]).join(", ")}`);
+      } else {
+        console.error(`[FMP] ${ticker} empty or unexpected response:`, JSON.stringify(raw).slice(0, 200));
+      }
+      return empty;
+    }
+    const cap = parsed.data[0].marketCap ?? parsed.data[0].mktCap ?? null;
+    return { marketCap: cap };
+  } catch (err) {
+    console.error(`[FMP] ${ticker} fetch error:`, err);
     return empty;
   }
 }
@@ -277,8 +364,6 @@ export async function enrichDetailsWithFmp(details: Record<string, QuoteDetail>)
       const d = details[detail.ticker];
       if (!d) return;
       if (fmp.marketCap != null) d.marketCap = fmp.marketCap;
-      if (fmp.trailingRevenue != null && d.trailingRevenue == null) d.trailingRevenue = fmp.trailingRevenue;
-      if (fmp.trailingNetIncome != null && d.trailingNetIncome == null) d.trailingNetIncome = fmp.trailingNetIncome;
     })
   );
 }

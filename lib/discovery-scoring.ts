@@ -299,7 +299,7 @@ function materialityScore(
 
 function extractMoneyValue(text: string): { value: number; label: string } | null {
   const matches = Array.from(
-    text.matchAll(/(?:[$€£]\s?([0-9]+(?:\.[0-9]+)?)\s?(billion|million|bn|m|b)?|([0-9]+(?:\.[0-9]+)?)\s?(billion|million|bn|m)\s?(?:dollars|usd|eur|euros|pounds|gbp)?)/gi)
+    text.matchAll(/(?:[$€£]\s?([0-9]+(?:\.[0-9]+)?)\s?(billion|million|bn|m\b|b\b)?|([0-9]+(?:\.[0-9]+)?)\s?(billion|million|bn|m\b|b\b)\s?(?:dollars|usd|eur|euros|pounds|gbp)?)/gi)
   );
   const parsed = matches.flatMap((match) => {
     const numeric = Number(match[1] ?? match[3]);
@@ -337,6 +337,16 @@ function calculateLag(
 
   if (!catalyst?.publishedAt) {
     return emptyLag("unknown", "No catalyst publication date, so post-news reaction cannot be measured.");
+  }
+
+  const daysSinceCatalystEarly = Math.max(0, Math.floor((Date.now() / 1000 - catalyst.publishedAt) / 86400));
+  if (daysSinceCatalystEarly > 180) {
+    return {
+      ...emptyLag("stale", `Catalyst is ${daysSinceCatalystEarly} days old — no sustained reaction in 6 months suggests the market already discounted it.`),
+      score: 2,
+      catalystDate: catalyst.publishedAt,
+      daysSinceCatalyst: daysSinceCatalystEarly
+    };
   }
 
   const sorted = candles.slice().sort((a, b) => a.time - b.time);

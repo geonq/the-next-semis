@@ -3,6 +3,7 @@ import { z } from "zod";
 import { discoverySectors, getDiscoverySector } from "@/lib/discovery-sectors";
 import { detectNegativeArticles, fetchCompanySectorEvidence, fetchSectorArticles, resolveArticleCandidates } from "@/lib/discovery-sources";
 import { groupResolvedCandidates, scoreDiscoveryResult } from "@/lib/discovery-scoring";
+import { fetchEdgarFinancials } from "@/lib/edgar";
 import { enrichDetailsWithFmp, fetchHistory, fetchQuoteDetails } from "@/lib/market";
 import type { DiscoveryScanResponse } from "@/lib/types";
 
@@ -26,6 +27,17 @@ export async function POST(request: Request) {
     const tickers = grouped.map((candidate) => candidate.ticker);
     const details = await fetchQuoteDetails(tickers);
     await enrichDetailsWithFmp(details);
+
+    // SEC EDGAR: fill revenue + net income for US-listed tickers still missing them
+    await Promise.all(
+      Object.values(details)
+        .filter((d) => d.trailingRevenue == null && d.trailingNetIncome == null)
+        .map(async (d) => {
+          const fin = await fetchEdgarFinancials(d.ticker);
+          if (fin.revenue != null) d.trailingRevenue = fin.revenue;
+          if (fin.netIncome != null) d.trailingNetIncome = fin.netIncome;
+        })
+    );
 
     const histories = await Promise.all(
       grouped.map(async (candidate) => [candidate.ticker, await fetchHistory(candidate.ticker, "6mo")] as const)

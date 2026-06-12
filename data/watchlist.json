@@ -196,5 +196,18 @@
     "conviction": "draft",
     "status": "watching",
     "brandColor": null
+  },
+  {
+    "ticker": "NXE",
+    "company": "NexGen Energy Ltd.",
+    "assetType": "equity",
+    "theme": "Energy Generation",
+    "conditions": [
+      "Discovery score 88/100 from 5 evidence item(s).",
+      "Lag check: Lag still present: since the catalyst, price is 9.4276% over 181 days, near normal range estimated at 2.00%/day because pre-catalyst history is thin."
+    ],
+    "conviction": "draft",
+    "status": "watching",
+    "brandColor": "#78be1b"
   }
 ]

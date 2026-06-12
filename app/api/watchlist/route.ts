@@ -4,6 +4,34 @@ import { fetchBrandfetchColor } from "@/lib/brandfetch";
 import { capitalizeFirst } from "@/lib/format";
 import { getWatchlist, setWatchlist } from "@/lib/kv";
 
+const discoveryContextSchema = z.object({
+  sectorName: z.string(),
+  scannedAt: z.number(),
+  discoveryScore: z.number(),
+  catalystScore: z.number(),
+  lagScore: z.number(),
+  riskScore: z.number(),
+  contractValue: z.number().nullable(),
+  contractValueLabel: z.string().nullable(),
+  contractToMarketCapPercent: z.number().nullable(),
+  contractToRevenuePercent: z.number().nullable(),
+  contractToNetIncomePercent: z.number().nullable(),
+  marketCap: z.number().nullable(),
+  trailingRevenue: z.number().nullable(),
+  lagVerdict: z.enum(["hidden", "declined", "reacted", "reacted_still_interesting", "too_early", "unknown", "stale"]),
+  catalystDate: z.number().nullable(),
+  daysSinceCatalyst: z.number().nullable(),
+  postEventMovePercent: z.number().nullable(),
+  currentMoveSinceCatalystPercent: z.number().nullable(),
+  riskFlags: z.array(z.string()),
+  topEvidence: z.array(z.object({
+    title: z.string(),
+    url: z.string(),
+    domain: z.string(),
+    publishedAt: z.number().nullable()
+  }))
+}).optional();
+
 const addSchema = z.object({
   ticker: z.string().min(1).max(20).transform((v) => v.toUpperCase()),
   company: z.string().min(1).max(200),
@@ -11,7 +39,8 @@ const addSchema = z.object({
   theme: z.string().min(1).max(100),
   conditions: z.array(z.string().max(500)).max(50),
   conviction: z.string().min(1).max(50),
-  status: z.string().min(1).max(50)
+  status: z.string().min(1).max(50),
+  discoveryContext: discoveryContextSchema
 });
 
 // Partial update of an existing entry (detail-view editing). Identity is the
@@ -57,7 +86,15 @@ export async function POST(request: Request) {
   if (exists) return NextResponse.json({ error: "Ticker already exists" }, { status: 409 });
 
   const brandColor = await resolveStoredBrandColor(request, parsed.data.ticker, parsed.data.company);
-  await setWatchlist([...entries, { ...parsed.data, theme: capitalizeFirst(parsed.data.theme.trim()), brandColor }]);
+  await setWatchlist([
+    ...entries,
+    {
+      ...parsed.data,
+      theme: capitalizeFirst(parsed.data.theme.trim()),
+      brandColor,
+      discoveryContext: parsed.data.discoveryContext ?? undefined
+    }
+  ]);
   return NextResponse.json({ ok: true });
 }
 

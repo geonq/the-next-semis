@@ -151,7 +151,7 @@ async function fetchYahooNewsArticles(query: string, sector: DiscoverySectorConf
         url: article.link,
         domain: safeDomain(article.link) || article.publisher || "",
         publishedAt: article.providerPublishTime ?? null,
-        relatedTickers: (article.relatedTickers ?? []).filter(isValidTicker)
+        relatedTickers: (article.relatedTickers ?? []).filter((t) => isValidTicker(t) && !t.startsWith("^"))
       };
       if (!articleLooksRelevant(candidate, sector)) return [];
       return [candidate];

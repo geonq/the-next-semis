@@ -8,6 +8,29 @@ export type Position = {
   thesis_id?: string;
 };
 
+export type DiscoveryContext = {
+  sectorName: string;
+  scannedAt: number;
+  discoveryScore: number;
+  catalystScore: number;
+  lagScore: number;
+  riskScore: number;
+  contractValue: number | null;
+  contractValueLabel: string | null;
+  contractToMarketCapPercent: number | null;
+  contractToRevenuePercent: number | null;
+  contractToNetIncomePercent: number | null;
+  marketCap: number | null;
+  trailingRevenue: number | null;
+  lagVerdict: DiscoveryLag["verdict"];
+  catalystDate: number | null;
+  daysSinceCatalyst: number | null;
+  postEventMovePercent: number | null;
+  currentMoveSinceCatalystPercent: number | null;
+  riskFlags: string[];
+  topEvidence: Array<{ title: string; url: string; domain: string; publishedAt: number | null }>;
+};
+
 export type WatchlistEntry = {
   ticker: string;
   company: string;
@@ -18,6 +41,7 @@ export type WatchlistEntry = {
   status: string;
   brandColor: string | null;
   buyTrigger?: string;
+  discoveryContext?: DiscoveryContext;
 };
 
 export type Quote = {
@@ -115,7 +139,7 @@ export type DiscoveryLag = {
   baselineAvgDailyMovePercent: number | null;
   excessMovePercent: number | null;
   hiddenMovePercent: number | null;
-  verdict: "hidden" | "declined" | "reacted" | "reacted_still_interesting" | "too_early" | "unknown";
+  verdict: "hidden" | "declined" | "reacted" | "reacted_still_interesting" | "too_early" | "unknown" | "stale";
   explanation: string;
 };
 

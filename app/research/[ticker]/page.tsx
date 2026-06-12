@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { BrandTicker } from "@/components/brand-ticker";
+import { DiscoveryIntelPanel } from "@/components/discovery-intel-panel";
 import { NewsPanel } from "@/components/news-panel";
 import { PriceChart } from "@/components/price-chart";
 import { ReadingList } from "@/components/reading-list";
@@ -68,6 +69,8 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
       </section>
 
       <PriceChart history={history} ticker={ticker} company={entry.company} brandColor={entry.brandColor} />
+
+      {entry.discoveryContext && <DiscoveryIntelPanel ctx={entry.discoveryContext} />}
 
       <TickerStateEditor
         ticker={ticker}

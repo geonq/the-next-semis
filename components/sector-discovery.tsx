@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { discoverySectors } from "@/lib/discovery-sectors";
 import { fmtAbs, fmtSignedPct, signClass } from "@/lib/format";
@@ -80,7 +80,34 @@ export function SectorDiscovery() {
             ...result.riskFlags.map((flag) => `Review risk: ${flag}`)
           ],
           conviction: "draft",
-          status: "watching"
+          status: "watching",
+          discoveryContext: {
+            sectorName: scan?.sectorName ?? "Sector Discovery",
+            scannedAt: scan?.scannedAt ?? Math.floor(Date.now() / 1000),
+            discoveryScore: result.discoveryScore,
+            catalystScore: result.catalystScore,
+            lagScore: result.lagScore,
+            riskScore: result.riskScore,
+            contractValue: result.materiality.contractValue,
+            contractValueLabel: result.materiality.contractValueLabel,
+            contractToMarketCapPercent: result.materiality.contractToMarketCapPercent,
+            contractToRevenuePercent: result.materiality.contractToRevenuePercent,
+            contractToNetIncomePercent: result.materiality.contractToNetIncomePercent,
+            marketCap: result.marketCap,
+            trailingRevenue: result.trailingRevenue,
+            lagVerdict: result.lag.verdict,
+            catalystDate: result.lag.catalystDate,
+            daysSinceCatalyst: result.lag.daysSinceCatalyst,
+            postEventMovePercent: result.lag.postEventMovePercent,
+            currentMoveSinceCatalystPercent: result.lag.currentMoveSinceCatalystPercent,
+            riskFlags: result.riskFlags,
+            topEvidence: result.evidence.slice(0, 5).map((e) => ({
+              title: e.title,
+              url: e.url,
+              domain: e.domain,
+              publishedAt: e.publishedAt
+            }))
+          }
         })
       });
 
@@ -241,14 +268,14 @@ function DiscoveryCard({
 
       <div className="discovery-metrics">
         <Metric label="Catalyst" value={catalystLevel(result.catalystScore)} context={`${result.evidence.length} article(s) · ${uniqueTermCount(result)} term(s)`} hint="keyword pattern strength" />
-        <Metric label="Materiality" value={`${fmtAbs(result.materiality.score)} pts`} context={materialityContext(result)} hint="contract vs company size" />
+        <Metric label="Materiality" value={materialityLevel(result.materiality.score)} context={materialityContext(result)} hint="contract vs company size" />
         <Metric label="Lag" value={formatScore(result.lag.score)} context={lagVerdict(result)} hint="100 = unharvested · 0 = priced in" />
         <Metric
           label="Risk"
-          value={`${fmtAbs(result.riskScore)} pts`}
+          value={riskLevel(result.riskScore)}
           context={result.riskFlags.length > 0 ? `${result.riskFlags.length} flag(s)` : "No risk terms"}
           tone={result.riskScore > 0 ? "loss" : "neutral"}
-          hint={result.riskScore > 0 ? "higher = more flags" : undefined}
+          hint={result.riskScore > 0 ? "more flags = higher risk" : undefined}
         />
       </div>
 
@@ -258,6 +285,7 @@ function DiscoveryCard({
           <strong className={
             result.lag.verdict === "hidden" ? "gain"
             : result.lag.verdict === "declined" ? "loss"
+            : result.lag.verdict === "stale" ? "muted"
             : result.lag.verdict === "reacted" ? "neutral"
             : "muted"
           }>
@@ -265,7 +293,7 @@ function DiscoveryCard({
           </strong>
         </div>
         <p className="muted">{result.lag.explanation}</p>
-        <p className="muted">{lagDataLine(result)}</p>
+        <LagDataLines result={result} />
       </div>
 
       <div className="materiality-panel">
@@ -375,6 +403,20 @@ function catalystLevel(score: number): string {
   return "Weak";
 }
 
+function materialityLevel(score: number): string {
+  if (score > 15) return "Very high";
+  if (score > 8) return "High";
+  if (score > 3) return "Moderate";
+  return "Low";
+}
+
+function riskLevel(score: number): string {
+  if (score > 10) return "High";
+  if (score > 4) return "Moderate";
+  if (score > 0) return "Low";
+  return "None";
+}
+
 function uniqueTermCount(result: DiscoveryResult): number {
   return new Set(result.evidence.flatMap((item) => item.matchedTerms)).size;
 }
@@ -396,29 +438,54 @@ function formatMoneyCompact(value: number): string {
   }).format(value);
 }
 
-function lagDataLine(result: DiscoveryResult): string {
-  const parts: string[] = [];
+function LagDataLines({ result }: { result: DiscoveryResult }) {
+  const lines: React.ReactNode[] = [];
+
   if (result.lag.catalystDate) {
-    parts.push(`Catalyst ${new Date(result.lag.catalystDate * 1000).toLocaleDateString()}`);
+    lines.push(
+      <li key="date" className="lag-data-line">
+        Catalyst date: {new Date(result.lag.catalystDate * 1000).toLocaleDateString()}
+      </li>
+    );
   }
   if (result.lag.postEventMovePercent != null) {
-    parts.push(`${fmtSignedPct(result.lag.postEventMovePercent)} over ${result.lag.eventWindowDays}d`);
+    lines.push(
+      <li key="event" className="lag-data-line">
+        First {result.lag.eventWindowDays}d:{" "}
+        <span className={signClass(result.lag.postEventMovePercent)}>
+          {fmtSignedPct(result.lag.postEventMovePercent)}
+        </span>
+      </li>
+    );
   }
   if (result.lag.currentMoveSinceCatalystPercent != null && result.lag.daysSinceCatalyst != null) {
-    parts.push(`${fmtSignedPct(result.lag.currentMoveSinceCatalystPercent)} since (${result.lag.daysSinceCatalyst}d)`);
+    lines.push(
+      <li key="total" className="lag-data-line">
+        Total since catalyst ({result.lag.daysSinceCatalyst}d):{" "}
+        <span className={signClass(result.lag.currentMoveSinceCatalystPercent)}>
+          {fmtSignedPct(result.lag.currentMoveSinceCatalystPercent)}
+        </span>
+      </li>
+    );
   }
   if (result.lag.postEventAvgDailyMovePercent != null) {
     const current = result.lag.currentAvgDailyMovePercent ?? result.lag.postEventAvgDailyMovePercent;
     const baseline = result.lag.baselineAvgDailyMovePercent;
-    parts.push(baseline != null ? `avg ${fmtAbs(current)}%/d vs ${fmtAbs(baseline)}%/d normal` : `avg ${fmtAbs(current)}%/d`);
+    lines.push(
+      <li key="avg" className="lag-data-line">
+        Avg daily move: {fmtAbs(current)}%/d
+        {baseline != null ? <span className="muted"> vs {fmtAbs(baseline)}%/d baseline</span> : null}
+      </li>
+    );
   }
-  return parts.length > 0 ? parts.join(" · ") : "No reaction data available";
+
+  if (lines.length === 0) return <p className="muted">No reaction data available.</p>;
+  return <ul className="lag-data-lines">{lines}</ul>;
 }
 
 function materialityDataLine(result: DiscoveryResult): string {
   const parts: string[] = [];
-  const val = result.materiality.contractValueLabel;
-  if (val) parts.push(val);
+  if (result.materiality.contractValue != null) parts.push(formatMoneyCompact(result.materiality.contractValue));
   if (result.materiality.confidence) parts.push(`${result.materiality.confidence} confidence`);
   if (result.marketCap != null) parts.push(`cap ${formatMoneyCompact(result.marketCap)}`);
   if (result.materiality.contractToRevenuePercent != null) {
@@ -436,6 +503,7 @@ function lagVerdict(result: DiscoveryResult): string {
   if (result.lag.verdict === "reacted_still_interesting") return "Moved, still material";
   if (result.lag.verdict === "reacted") return "Already repriced";
   if (result.lag.verdict === "too_early") return "Too early";
+  if (result.lag.verdict === "stale") return "Stale — >6mo old";
   return "No reaction data";
 }
 
@@ -444,7 +512,7 @@ function materialityLabel(result: DiscoveryResult): string {
     return `${fmtAbs(result.materiality.contractToMarketCapPercent)}% of market cap`;
   }
   if (result.materiality.contractValue != null) {
-    return result.materiality.contractValueLabel ?? formatMoneyCompact(result.materiality.contractValue);
+    return formatMoneyCompact(result.materiality.contractValue);
   }
   return "No value extracted";
 }
@@ -453,7 +521,9 @@ function materialityContext(result: DiscoveryResult): string {
   const pieces = [];
   if (result.materiality.contractToMarketCapPercent != null) pieces.push(`${fmtAbs(result.materiality.contractToMarketCapPercent)}% cap`);
   if (result.materiality.contractToNetIncomePercent != null) pieces.push(`${fmtAbs(result.materiality.contractToNetIncomePercent)}% income`);
-  if (pieces.length === 0 && result.materiality.contractValue != null) return "cap unknown — ratio unavailable";
+  if (pieces.length === 0 && result.materiality.contractValue != null) {
+    return `${formatMoneyCompact(result.materiality.contractValue)} · cap unknown`;
+  }
   return pieces.length > 0 ? pieces.join(" · ") : "no contract value found";
 }
 

@@ -168,10 +168,12 @@ export function ReadingList({
               ) : (
                 <div className="reading-item" key={item.id}>
                   <div className="reading-item-left">
-                    <a className="reading-title" href={item.url} target="_blank" rel="noopener noreferrer">
-                      {item.title}
-                    </a>
-                    <span className={`reading-badge ${item.type}`}>{item.type}</span>
+                    <div className="reading-item-top">
+                      <a className="reading-title" href={item.url} target="_blank" rel="noopener noreferrer">
+                        {item.title}
+                      </a>
+                      <span className={`reading-badge ${item.type}`}>{item.type}</span>
+                    </div>
                     {item.note ? (
                       <>
                         <p className="reading-note-label">Notes</p>
