@@ -71,8 +71,10 @@ export function PortfolioClient({
             {enriched.map((position) => (
               <tr key={position.ticker}>
                 <td>
-                  <span className="ticker">{position.ticker}</span>{" "}
-                  <span className="subtle">{position.company}</span>
+                  <span className="position-cell">
+                    <span className="ticker">{position.ticker}</span>
+                    <span className="subtle">{position.company}</span>
+                  </span>
                 </td>
                 <td className="tabular">{position.shares.toLocaleString("en-US")}</td>
                 <td className="tabular">{fmtUsd(position.average_cost)}</td>

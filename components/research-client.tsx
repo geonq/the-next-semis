@@ -93,20 +93,17 @@ export function ResearchClient({
               </div>
 
               <p className="meta-line">
-                {capitalizeFirst(entry.theme)}
-                <span className="dot">·</span>
-                <span>{entry.assetType}</span>
-                <span className="dot">·</span>
-                <span className={convictionClass(entry.conviction)}>{entry.conviction}</span>
-                <span className="dot">·</span>
-                <span className={statusClass(entry.status)}>{entry.status}</span>
+                <span className="meta-chip meta-chip-primary">{capitalizeFirst(entry.theme)}</span>
+                <span className="meta-chip">{entry.assetType}</span>
+                <span className={`meta-chip ${convictionClass(entry.conviction)}`}>{entry.conviction}</span>
+                <span className={`meta-chip ${statusClass(entry.status)}`}>{entry.status}</span>
               </p>
 
               <ul className="conditions">
                 {entry.conditions.slice(0, 3).map((condition) => (
                   <li className="condition" key={condition}>
-                    <span className="muted">-</span>
-                    {condition}
+                    <span className="condition-marker" />
+                    <span>{condition}</span>
                   </li>
                 ))}
               </ul>

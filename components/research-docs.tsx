@@ -116,12 +116,14 @@ export function ResearchDocs({ docs, isAdmin }: { docs: ResearchDoc[]; isAdmin: 
                     {doc.name}
                   </a>
                 </div>
+                <div className="reading-meta">
+                  {doc.size > 0 ? <span>{formatBytes(doc.size)}</span> : null}
+                  {doc.size > 0 ? <span className="dot">·</span> : null}
+                  <span>{relativeTime(doc.addedAt)}</span>
+                </div>
               </div>
-              <div className="reading-item-right">
-                {doc.size > 0 ? <span>{formatBytes(doc.size)}</span> : null}
-                {doc.size > 0 ? <span>·</span> : null}
-                <span>{relativeTime(doc.addedAt)}</span>
-                {isAdmin ? (
+              {isAdmin ? (
+                <div className="reading-item-right">
                   <button
                     className="reading-delete"
                     onClick={() => handleDelete(doc.id)}
@@ -130,8 +132,8 @@ export function ResearchDocs({ docs, isAdmin }: { docs: ResearchDoc[]; isAdmin: 
                   >
                     ✕
                   </button>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

@@ -45,8 +45,9 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
               />
               <span className="ticker-company">{entry.company}</span>
             </h1>
-            <p className="subtle">
-              {capitalizeFirst(entry.theme)} · {entry.assetType}
+            <p className="meta-line ticker-meta">
+              <span className="meta-chip meta-chip-primary">{capitalizeFirst(entry.theme)}</span>
+              <span className="meta-chip">{entry.assetType}</span>
             </p>
           </div>
 
@@ -54,7 +55,7 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
             {quote?.price != null ? (
               <>
                 <p className="hero-number tabular">${fmtAbs(quote.price)}</p>
-                <p className={`tabular ${signClass(quote.regular_market_change_percent)}`}>
+                <p className={`price-delta tabular ${signClass(quote.regular_market_change_percent)}`}>
                   {fmtSignedPct(quote.regular_market_change_percent)}{" "}
                   <span className="muted">({fmtSignedUsd(quote.regular_market_change)})</span>
                 </p>

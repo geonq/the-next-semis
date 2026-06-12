@@ -134,10 +134,9 @@ export function TickerStateEditor({
             </button>
           ) : null}
         </div>
-        <div>
-          <span className={convictionClass(conviction)}>{conviction}</span>
-          <span className="dot">·</span>
-          <span className={statusClass(status)}>{status}</span>
+        <div className="meta-line detail-meta">
+          <span className={`meta-chip ${convictionClass(conviction)}`}>{conviction}</span>
+          <span className={`meta-chip ${statusClass(status)}`}>{status}</span>
         </div>
       </div>
 
@@ -146,8 +145,8 @@ export function TickerStateEditor({
         <ul className="conditions">
           {conditions.map((condition) => (
             <li className="condition" key={condition}>
-              <span className="muted">-</span>
-              {condition}
+              <span className="condition-marker" />
+              <span>{condition}</span>
             </li>
           ))}
         </ul>

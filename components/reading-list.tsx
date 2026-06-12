@@ -168,20 +168,25 @@ export function ReadingList({
               ) : (
                 <div className="reading-item" key={item.id}>
                   <div className="reading-item-left">
-                    <div className="reading-item-top">
-                      <span className={`reading-badge ${item.type}`}>{item.type}</span>
-                      <a className="reading-title" href={item.url} target="_blank" rel="noopener noreferrer">
-                        {item.title}
-                      </a>
+                    <a className="reading-title" href={item.url} target="_blank" rel="noopener noreferrer">
+                      {item.title}
+                    </a>
+                    <span className={`reading-badge ${item.type}`}>{item.type}</span>
+                    {item.note ? (
+                      <>
+                        <p className="reading-note-label">Notes</p>
+                        <p className="reading-note">{item.note}</p>
+                      </>
+                    ) : null}
+                    <div className="reading-meta">
+                      {item.theme ? <span className="reading-theme">{capitalizeFirst(item.theme)}</span> : null}
+                      <span>{domain(item.url)}</span>
+                      <span className="dot">·</span>
+                      <span>{relativeTime(item.addedAt)}</span>
                     </div>
-                    {item.note ? <p className="reading-note">{item.note}</p> : null}
-                    {item.theme ? <p className="reading-note">{capitalizeFirst(item.theme)}</p> : null}
                   </div>
-                  <div className="reading-item-right">
-                    <span>{domain(item.url)}</span>
-                    <span className="dot">·</span>
-                    <span>{relativeTime(item.addedAt)}</span>
-                    {isAdmin ? (
+                  {isAdmin ? (
+                    <div className="reading-item-right">
                       <button
                         className="reading-delete"
                         onClick={() => setEditingId(item.id)}
@@ -190,23 +195,26 @@ export function ReadingList({
                       >
                         ✎
                       </button>
-                    ) : null}
-                    {isAdmin && ticker ? (
+                      {ticker ? (
+                        <button
+                          className="reading-delete"
+                          onClick={() => patchItem(item.id, "detach")}
+                          type="button"
+                          aria-label={`Remove from ${ticker}`}
+                        >
+                          ↩
+                        </button>
+                      ) : null}
                       <button
                         className="reading-delete"
-                        onClick={() => patchItem(item.id, "detach")}
+                        onClick={() => deleteItem(item.id)}
                         type="button"
-                        aria-label={`Remove from ${ticker}`}
+                        aria-label="Delete"
                       >
-                        ↩
-                      </button>
-                    ) : null}
-                    {isAdmin ? (
-                      <button className="reading-delete" onClick={() => deleteItem(item.id)} type="button" aria-label="Delete">
                         ✕
                       </button>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
               )
             )}
