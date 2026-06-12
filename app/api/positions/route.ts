@@ -5,6 +5,7 @@ import { getPositions, setPositions } from "@/lib/kv";
 const addSchema = z.object({
   ticker: z.string().min(1).max(20).transform((v) => v.toUpperCase()),
   company: z.string().min(1).max(200),
+  assetClass: z.enum(["stock", "crypto"]).optional(),
   shares: z.number().finite(),
   average_cost: z.number().finite(),
   currency: z.string().min(1).max(10),

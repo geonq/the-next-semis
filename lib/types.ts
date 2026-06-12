@@ -1,6 +1,7 @@
 export type Position = {
   ticker: string;
   company: string;
+  assetClass?: "stock" | "crypto";
   shares: number;
   average_cost: number;
   currency: string;

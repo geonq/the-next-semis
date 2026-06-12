@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import { enrichPositions, portfolioSummary } from "@/lib/portfolio";
 import type { EnrichedPosition, Position, QuotesByTicker, WatchlistEntry } from "@/lib/types";
+import { SegmentedTabs } from "./segmented-tabs";
 import { TickerAutocomplete } from "./ticker-autocomplete";
 import { useLiveQuotes } from "./use-live-quotes";
 
@@ -57,7 +58,7 @@ export function PortfolioClient({
           <thead>
             <tr>
               <th>Position</th>
-              <th>Shares</th>
+              <th>Amount</th>
               <th>Avg Cost</th>
               <th>Current</th>
               <th>Value</th>
@@ -185,12 +186,15 @@ function Concentration({
   );
 }
 
+type AssetClass = "stock" | "crypto";
+
 function AddPositionForm({ onAdded }: { onAdded: () => void }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     ticker: "",
     company: "",
+    assetClass: "stock" as AssetClass,
     shares: "",
     average_cost: "",
     currency: "USD",
@@ -207,6 +211,7 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
       body: JSON.stringify({
         ticker: form.ticker,
         company: form.company,
+        assetClass: form.assetClass,
         shares: parseFloat(form.shares),
         average_cost: parseFloat(form.average_cost),
         currency: form.currency,
@@ -215,7 +220,7 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
     });
 
     if (res.ok) {
-      setForm({ ticker: "", company: "", shares: "", average_cost: "", currency: "USD", sector: "" });
+      setForm({ ticker: "", company: "", assetClass: "stock", shares: "", average_cost: "", currency: "USD", sector: "" });
       setOpen(false);
       onAdded();
     } else {
@@ -236,9 +241,22 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
     <form className="add-form" onSubmit={handleSubmit}>
       <p className="section-label">New position</p>
       <div className="add-fields">
+        <SegmentedTabs
+          options={["Stock", "Crypto"]}
+          value={form.assetClass === "crypto" ? "Crypto" : "Stock"}
+          onChange={(value) =>
+            setForm((f) => ({
+              ...f,
+              ticker: "",
+              company: "",
+              assetClass: value === "Crypto" ? "crypto" : "stock"
+            }))
+          }
+        />
         <TickerAutocomplete
           ticker={form.ticker}
           company={form.company}
+          assetClass={form.assetClass}
           onSelect={(ticker, company) => setForm((f) => ({ ...f, ticker, company: company ?? f.company }))}
           required
         />
@@ -251,7 +269,7 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
         />
         <input
           className="add-input"
-          placeholder="Shares"
+          placeholder={form.assetClass === "crypto" ? "Coins" : "Shares"}
           required
           type="number"
           step="any"
