@@ -46,10 +46,20 @@ describe("portfolio calculations", () => {
     expect(summary.day_change_percent).toBeCloseTo(1.227, 3);
   });
 
-  it("orders movers by day-change direction and excludes missing data", () => {
+  it("filters movers by positive and negative day-change direction", () => {
     const enriched = enrichPositions(positions, quotes);
 
-    expect(movers(enriched, "desc").map((position) => position.ticker)).toEqual(["NVDA", "AMD"]);
-    expect(movers(enriched, "asc").map((position) => position.ticker)).toEqual(["AMD", "NVDA"]);
+    expect(movers(enriched, "desc").map((position) => position.ticker)).toEqual(["NVDA"]);
+    expect(movers(enriched, "asc").map((position) => position.ticker)).toEqual(["AMD"]);
+  });
+
+  it("returns no losers when every quoted position is flat or positive", () => {
+    const positiveQuotes: QuotesByTicker = {
+      ...quotes,
+      AMD: { ...quotes.AMD, regular_market_change: 0, regular_market_change_percent: 0 }
+    };
+    const enriched = enrichPositions(positions, positiveQuotes);
+
+    expect(movers(enriched, "asc")).toEqual([]);
   });
 });

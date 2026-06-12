@@ -39,8 +39,18 @@ export function OverviewClient({
 
       <section className="hairline">
         <div className="two-col">
-          <MoverColumn title="Top Gainers" positions={topGainers} polarity="gain" />
-          <MoverColumn title="Top Losers" positions={topLosers} polarity="loss" />
+          <MoverColumn
+            title="Top Gainers"
+            positions={topGainers}
+            polarity="gain"
+            emptyText="No positions moved higher today."
+          />
+          <MoverColumn
+            title="Top Losers"
+            positions={topLosers}
+            polarity="loss"
+            emptyText="No positions moved lower today."
+          />
         </div>
       </section>
     </div>
@@ -50,11 +60,13 @@ export function OverviewClient({
 function MoverColumn({
   title,
   positions,
-  polarity
+  polarity,
+  emptyText
 }: {
   title: string;
   positions: ReturnType<typeof movers>;
   polarity: "gain" | "loss";
+  emptyText: string;
 }) {
   return (
     <div>
@@ -69,7 +81,7 @@ function MoverColumn({
             <span className={`tabular ${polarity}`}>{fmtSignedPct(position.day_change_percent)}</span>
           </div>
         ))}
-        {positions.length === 0 ? <p className="muted">Awaiting data...</p> : null}
+        {positions.length === 0 ? <p className="muted">{emptyText}</p> : null}
       </div>
     </div>
   );
