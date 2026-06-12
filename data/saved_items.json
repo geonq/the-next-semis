@@ -1,14 +1,26 @@
 [
   {
-    "id": "5b2b07b1-db4f-47d2-8a77-8225842776b5",
+    "id": "8fa36b70-19ad-4003-9fee-e4ae23472148",
     "type": "article",
-    "title": "3 Aerospace Stocks Ready to Ride the Aftermarket Rebound",
-    "url": "https://finance.yahoo.com/m/8624afdb-e914-395b-b927-2d85855fea48/3-aerospace-stocks-ready-to.html",
-    "note": "interesting",
-    "theme": "Defense",
+    "title": "CMPS Stock Rises 23% Pre-Market As Compass Achieves Primary Endpoint In Phase 3 Treatment-Resistant Depression Trial - Stocktwits",
+    "url": "https://news.google.com/rss/articles/CBMizwFBVV95cUxOdkZXUnVmcl9lb3hlbS1DMm1vUEItNVhFbHhzclRaUUItOGFVWVNlQmdiSE81aW1IVWpmVVVuVzhWT0JvbS1VdWRWRkNhQlYxcUVQRzRTQ01pT3pjYTBienJUOVFUME5fcnhwSGdZaGJsampuNlgwLVdxZWxFcTlzZnRSNHZDSGJiR2VqYVk1ZXRuSUpvT1hwZEVwSEVkRnRqcjNIT0xjVk9nMi1LU1RjNGVZbVdaS0FFNGZhMUFvNXZPeGJFYlNWVGlQTVRBZlU?oc=5",
+    "note": "Discovery candidate CMPS. Score 88/100. Catalyst 7.00 pts, source 2.00 pts, risk 0.00 pts. Lag still present: since the catalyst, price is -2.728% over 3 days, near normal range 4.7893%/day. Matched: phase 3.",
+    "theme": "Pharma & Biotech Platforms",
     "tickers": [
-      "RTX"
+      "CMPS"
     ],
-    "addedAt": 1781213522
+    "addedAt": 1781261556
+  },
+  {
+    "id": "af010a32-e9e9-4b92-a66f-fcfa22a2f979",
+    "type": "article",
+    "title": "Momentum Amidst Tumult: The FDA Reshuffle, Approval Timelines, and the Compass-Usona Race - Psychedelic Alpha",
+    "url": "https://news.google.com/rss/articles/CBMivgFBVV95cUxOTHpZOVBmeERpNHRoalJhUGEzVFFjZHdSaTc0cHduSlNUV3J2QXh2M09zZnIwMElQeFZWZ1dUejVmZE9ZLXRPaUhuSlJ2N2VEWEdBNFZMRzc2dC1GTC1vUzdHZElQNWNCVVZxX2xjOFNsRFM1RDJ2cEpNNlRlVkZBc0t6MWlaQTA4VUk5STJqallVSnFWNDExUUhaZTVtNGY3WWZ4TEFqTTVHQ2RwbVFUT0I2eFZFR3Z0azRRcTlR?oc=5",
+    "note": "Discovery candidate CMPS. Score 88/100. Catalyst 6.00 pts, source 2.00 pts, risk 0.00 pts. Lag still present: since the catalyst, price is -2.728% over 3 days, near normal range 4.7893%/day. Matched: approval.",
+    "theme": "Pharma & Biotech Platforms",
+    "tickers": [
+      "CMPS"
+    ],
+    "addedAt": 1781261556
   }
 ]

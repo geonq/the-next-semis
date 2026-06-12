@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { discoverySectors } from "@/lib/discovery-sectors";
 import { fmtAbs, fmtSignedPct, signClass } from "@/lib/format";
@@ -17,6 +17,19 @@ export function SectorDiscovery() {
   const [addMessages, setAddMessages] = useState<Record<string, string>>({});
   const scanTime = scan ? new Date(scan.scannedAt * 1000).toLocaleString() : null;
 
+  useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem("discovery_scan_last");
+      if (!cached) return;
+      const data = JSON.parse(cached) as DiscoveryScanResponse;
+      setScan(data);
+      setSector(data.sector);
+      setSelected(
+        Object.fromEntries(data.results.map((r) => [r.ticker, new Set(r.evidence.map((item) => item.url))]))
+      );
+    } catch {}
+  }, []);
+
   async function runScan() {
     setLoading(true);
     setError("");
@@ -28,6 +41,7 @@ export function SectorDiscovery() {
       });
       const data = (await res.json()) as DiscoveryScanResponse;
       if (!res.ok) throw new Error(data.error ?? "Scan failed.");
+      sessionStorage.setItem("discovery_scan_last", JSON.stringify(data));
       setScan(data);
       setSelected(
         Object.fromEntries(data.results.map((result) => [result.ticker, new Set(result.evidence.map((item) => item.url))]))
@@ -77,23 +91,23 @@ export function SectorDiscovery() {
 
       const selectedUrls = selected[result.ticker] ?? new Set<string>();
       const toSave = result.evidence.filter((item) => selectedUrls.has(item.url));
-      const saveResults = await Promise.all(
-        toSave.map(async (item) => {
-          const res = await fetch("/api/saved-items", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: "article",
-              url: item.url,
-              title: item.title,
-              note: evidenceNote(result, item),
-              theme: scan?.sectorName ?? "Sector Discovery",
-              tickers: [result.ticker]
-            })
-          });
-          return res.ok;
-        })
-      );
+      // Sequential saves — concurrent POSTs race on the same KV read-modify-write
+      const saveResults: boolean[] = [];
+      for (const item of toSave) {
+        const res = await fetch("/api/saved-items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "article",
+            url: item.url,
+            title: item.title,
+            note: evidenceNote(result, item),
+            theme: scan?.sectorName ?? "Sector Discovery",
+            tickers: [result.ticker]
+          })
+        });
+        saveResults.push(res.ok);
+      }
       const saved = saveResults.filter(Boolean).length;
       const failed = saveResults.length - saved;
 
@@ -164,13 +178,18 @@ export function SectorDiscovery() {
   );
 }
 
-function brokerAccessibility(exchange: string | null): string {
-  if (!exchange) return "verify accessibility";
-  if (/nyse|nasdaq|nysearca|amex|new york/i.test(exchange)) return "Robinhood · Trade Republic";
-  if (/toronto|tsx/i.test(exchange)) return "Trade Republic only";
-  if (/london|frankfurt|xetra|euronext|milan/i.test(exchange)) return "Trade Republic only";
-  if (/otc|pink/i.test(exchange)) return "OTC · check availability";
-  return "check availability";
+function exchangeLabel(exchange: string | null): string {
+  if (!exchange) return "exchange unknown";
+  if (/nyse|nasdaq|nysearca|amex/i.test(exchange)) return "US listed";
+  if (/toronto|tsx/i.test(exchange)) return "Canadian listed";
+  if (/london/i.test(exchange)) return "London listed";
+  if (/frankfurt|xetra/i.test(exchange)) return "German listed";
+  if (/euronext/i.test(exchange)) return "Euronext listed";
+  if (/milan/i.test(exchange)) return "Italian listed";
+  if (/australian/i.test(exchange)) return "Australian listed";
+  if (/hong kong/i.test(exchange)) return "HK listed";
+  if (/otc|pink/i.test(exchange)) return "OTC — verify availability";
+  return "verify availability";
 }
 
 function scoreDriver(result: DiscoveryResult): string {
@@ -215,13 +234,13 @@ function DiscoveryCard({
 
       <p className="meta-line">
         <span className="meta-chip meta-chip-primary">{result.exchange ?? "Unknown exchange"}</span>
-        <span className="muted discovery-broker-label">{brokerAccessibility(result.exchange)}</span>
+        <span className="muted discovery-broker-label">{exchangeLabel(result.exchange)}</span>
         <span className={signClass(result.priceChange5d)}>{fmtSignedPct(toPct(result.priceChange5d))} 5d</span>
         <span className={signClass(result.priceChange1mo)}>{fmtSignedPct(toPct(result.priceChange1mo))} 1mo</span>
       </p>
 
       <div className="discovery-metrics">
-        <Metric label="Catalyst" value={`${fmtAbs(result.catalystScore)} pts`} context={`${result.evidence.length} evidence item(s)`} hint="evidence signal strength" />
+        <Metric label="Catalyst" value={catalystLevel(result.catalystScore)} context={`${result.evidence.length} article(s) · ${uniqueTermCount(result)} term(s)`} hint="keyword pattern strength" />
         <Metric label="Materiality" value={`${fmtAbs(result.materiality.score)} pts`} context={materialityContext(result)} hint="contract vs company size" />
         <Metric label="Lag" value={formatScore(result.lag.score)} context={lagVerdict(result)} hint="100 = unharvested · 0 = priced in" />
         <Metric
@@ -349,6 +368,17 @@ function Metric({
   );
 }
 
+function catalystLevel(score: number): string {
+  if (score > 60) return "Very strong";
+  if (score > 35) return "Strong";
+  if (score > 15) return "Moderate";
+  return "Weak";
+}
+
+function uniqueTermCount(result: DiscoveryResult): number {
+  return new Set(result.evidence.flatMap((item) => item.matchedTerms)).size;
+}
+
 function toPct(value: number | null): number | null {
   return value == null ? null : value * 100;
 }
@@ -410,15 +440,21 @@ function lagVerdict(result: DiscoveryResult): string {
 }
 
 function materialityLabel(result: DiscoveryResult): string {
-  if (result.materiality.contractToMarketCapPercent == null) return "Unknown";
-  return `${fmtAbs(result.materiality.contractToMarketCapPercent)}% of market cap`;
+  if (result.materiality.contractToMarketCapPercent != null) {
+    return `${fmtAbs(result.materiality.contractToMarketCapPercent)}% of market cap`;
+  }
+  if (result.materiality.contractValue != null) {
+    return result.materiality.contractValueLabel ?? formatMoneyCompact(result.materiality.contractValue);
+  }
+  return "No value extracted";
 }
 
 function materialityContext(result: DiscoveryResult): string {
   const pieces = [];
   if (result.materiality.contractToMarketCapPercent != null) pieces.push(`${fmtAbs(result.materiality.contractToMarketCapPercent)}% cap`);
   if (result.materiality.contractToNetIncomePercent != null) pieces.push(`${fmtAbs(result.materiality.contractToNetIncomePercent)}% income`);
-  return pieces.length > 0 ? pieces.join(" · ") : "No value ratio";
+  if (pieces.length === 0 && result.materiality.contractValue != null) return "cap unknown — ratio unavailable";
+  return pieces.length > 0 ? pieces.join(" · ") : "no contract value found";
 }
 
 function evidenceNote(result: DiscoveryResult, item: DiscoveryEvidence): string {

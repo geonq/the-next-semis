@@ -3,7 +3,7 @@ import { z } from "zod";
 import { discoverySectors, getDiscoverySector } from "@/lib/discovery-sectors";
 import { detectNegativeArticles, fetchCompanySectorEvidence, fetchSectorArticles, resolveArticleCandidates } from "@/lib/discovery-sources";
 import { groupResolvedCandidates, scoreDiscoveryResult } from "@/lib/discovery-scoring";
-import { fetchHistory, fetchQuoteDetails } from "@/lib/market";
+import { enrichDetailsWithFmp, fetchHistory, fetchQuoteDetails } from "@/lib/market";
 import type { DiscoveryScanResponse } from "@/lib/types";
 
 const scanSchema = z.object({
@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     const grouped = await enrichCandidateGroups(groupResolvedCandidates(resolved).slice(0, 35), sector);
     const tickers = grouped.map((candidate) => candidate.ticker);
     const details = await fetchQuoteDetails(tickers);
+    await enrichDetailsWithFmp(details);
 
     const histories = await Promise.all(
       grouped.map(async (candidate) => [candidate.ticker, await fetchHistory(candidate.ticker, "6mo")] as const)
@@ -40,7 +41,17 @@ export async function POST(request: Request) {
       .slice(0, 12);
 
     await Promise.all(results.map(async (result) => {
-      result.badNews = await detectNegativeArticles(result.ticker, result.company);
+      const newsBad = await detectNegativeArticles(result.ticker, result.company);
+      if (result.priceChange1mo != null && result.priceChange1mo < -0.5) {
+        const pct = Math.round(Math.abs(result.priceChange1mo) * 100);
+        newsBad.unshift({
+          title: `Stock has fallen ${pct}% over the past month — check for corporate events, delisting, reverse split, or bankruptcy.`,
+          url: `https://finance.yahoo.com/quote/${result.ticker}`,
+          domain: "finance.yahoo.com",
+          publishedAt: null
+        });
+      }
+      result.badNews = newsBad;
     }));
 
     const response: DiscoveryScanResponse = {

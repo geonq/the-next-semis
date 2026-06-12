@@ -488,6 +488,7 @@ function riskFlagsFor({
   else if (marketCap != null && marketCap < 500_000_000) flags.add("Small cap");
   if (volume != null && volume < 100_000) flags.add("Thin daily volume");
   if (priceChange1mo != null && priceChange1mo > 0.8) flags.add("Already moved hard in 1mo");
+  if (priceChange1mo != null && priceChange1mo < -0.5) flags.add("Down 50%+ in past month");
   if (exchange && /otc|pink/i.test(exchange)) flags.add("OTC listing");
   return Array.from(flags);
 }

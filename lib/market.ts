@@ -148,7 +148,13 @@ export async function fetchQuoteDetails(tickers: string[]): Promise<Record<strin
     if (detail) base[detail.ticker] = detail;
   }
 
-  const enriched = await Promise.all(Object.values(base).map(enrichQuoteDetail));
+  // Sequential with pacing — avoids bursting Yahoo's quoteSummary endpoint.
+  // Discovery scans are admin-only one-off calls; latency is acceptable.
+  const enriched: QuoteDetail[] = [];
+  for (const detail of Object.values(base)) {
+    enriched.push(await enrichQuoteDetail(detail));
+    await new Promise<void>((r) => setTimeout(r, 250));
+  }
   return Object.fromEntries(enriched.map((detail) => [detail.ticker, detail]));
 }
 
@@ -229,6 +235,52 @@ function rawNumber(value: unknown): number | null {
   if (typeof value === "number") return value;
   if (value && typeof value === "object" && typeof (value as { raw?: unknown }).raw === "number") return (value as { raw: number }).raw;
   return null;
+}
+
+const fmpProfileSchema = z.array(
+  z.object({
+    mktCap: z.number().nullable().optional(),
+    revenue: z.number().nullable().optional(),
+    netIncome: z.number().nullable().optional()
+  })
+);
+
+async function fetchFmpProfile(ticker: string): Promise<{ marketCap: number | null; trailingRevenue: number | null; trailingNetIncome: number | null }> {
+  const empty = { marketCap: null, trailingRevenue: null, trailingNetIncome: null };
+  const apiKey = process.env.FMP_API_KEY;
+  if (!apiKey) return empty;
+  try {
+    const response = await fetch(
+      `https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(ticker)}?apikey=${encodeURIComponent(apiKey)}`,
+      { headers: { "user-agent": "Mozilla/5.0" }, next: { revalidate: 3600 } }
+    );
+    if (!response.ok) return empty;
+    const parsed = fmpProfileSchema.safeParse(await response.json());
+    if (!parsed.success || parsed.data.length === 0) return empty;
+    const p = parsed.data[0];
+    return {
+      marketCap: p.mktCap ?? null,
+      trailingRevenue: p.revenue ?? null,
+      trailingNetIncome: p.netIncome ?? null
+    };
+  } catch {
+    return empty;
+  }
+}
+
+export async function enrichDetailsWithFmp(details: Record<string, QuoteDetail>): Promise<void> {
+  const needsCap = Object.values(details).filter((d) => d.marketCap == null);
+  if (needsCap.length === 0) return;
+  await Promise.all(
+    needsCap.map(async (detail) => {
+      const fmp = await fetchFmpProfile(detail.ticker);
+      const d = details[detail.ticker];
+      if (!d) return;
+      if (fmp.marketCap != null) d.marketCap = fmp.marketCap;
+      if (fmp.trailingRevenue != null && d.trailingRevenue == null) d.trailingRevenue = fmp.trailingRevenue;
+      if (fmp.trailingNetIncome != null && d.trailingNetIncome == null) d.trailingNetIncome = fmp.trailingNetIncome;
+    })
+  );
 }
 
 export async function fetchHistory(ticker: string, range = "1mo"): Promise<Candle[]> {

@@ -170,5 +170,31 @@
     "conviction": "draft",
     "status": "watching",
     "brandColor": "#f0000a"
+  },
+  {
+    "ticker": "QNCX",
+    "company": "Quince Therapeutics, Inc.",
+    "assetType": "equity",
+    "theme": "Pharma & Biotech Platforms",
+    "conditions": [
+      "Discovery score 74/100 from 4 evidence item(s).",
+      "Lag check: Catalyst appears repriced: price is -97.7559% since the catalyst over 181 days."
+    ],
+    "conviction": "draft",
+    "status": "watching",
+    "brandColor": "#f767af"
+  },
+  {
+    "ticker": "CMPS",
+    "company": "COMPASS Pathways plc",
+    "assetType": "equity",
+    "theme": "Pharma & Biotech Platforms",
+    "conditions": [
+      "Discovery score 88/100 from 5 evidence item(s).",
+      "Lag check: Lag still present: since the catalyst, price is -2.728% over 3 days, near normal range 4.7893%/day."
+    ],
+    "conviction": "draft",
+    "status": "watching",
+    "brandColor": null
   }
 ]

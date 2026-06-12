@@ -104,7 +104,7 @@ async function fetchGdeltSectorArticles(sector: DiscoverySectorConfig): Promise<
     if (!parsed.success) return [];
 
     return (parsed.data.articles ?? []).flatMap((article) => {
-      if (!article.title || !article.url) return [];
+      if (!article.title || !article.url || !isHttpUrl(article.url)) return [];
       return [
         {
           title: article.title,
@@ -145,7 +145,7 @@ async function fetchYahooNewsArticles(query: string, sector: DiscoverySectorConf
     if (!parsed.success) return [];
 
     return (parsed.data.news ?? []).flatMap((article) => {
-      if (!article.title || !article.link) return [];
+      if (!article.title || !article.link || !isHttpUrl(article.link)) return [];
       const candidate = {
         title: article.title,
         url: article.link,
@@ -206,7 +206,7 @@ async function fetchGoogleNewsArticles(query: string, maxItems: number): Promise
         const url = decodeHtml(xmlTag(item, "link"));
         const source = decodeHtml(item.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] ?? "");
         const publishedAt = Date.parse(decodeHtml(xmlTag(item, "pubDate")));
-        if (!title || !url) return [];
+        if (!title || !url || !isHttpUrl(url)) return [];
         return [
           {
             title,
@@ -466,6 +466,15 @@ function safeDomain(url: string): string {
   }
 }
 
+function isHttpUrl(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function parseGdeltDate(value: string | undefined): number | null {
   if (!value) return null;
   const timestamp = Date.parse(value.replace(/^(\d{4})(\d{2})(\d{2})T/, "$1-$2-$3T"));
@@ -532,7 +541,10 @@ function quoteQueryTerm(term: string): string {
 const negativeKeywords = [
   "downgrade", "miss", "misses", "loss", "losses", "sec ", "lawsuit",
   "dilut", "concern", "warning", "cut ", "investigation", "probe",
-  "fraud", "bankruptcy", "recall", "resign", "layoff", "restructur"
+  "fraud", "bankruptcy", "recall", "resign", "layoff", "restructur",
+  "delist", "delisted", "delisting", "reverse split", "going concern",
+  "halted", "suspended", "chapter 11", "chapter 7", "receivership",
+  "default", "insolvency", "insolvent", "wind down", "cease operations"
 ];
 
 export async function detectNegativeArticles(
