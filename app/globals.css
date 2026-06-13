@@ -135,16 +135,25 @@ ol {
 .stack-xl {
   display: grid;
   gap: 64px;
+  min-width: 0;
 }
 
 .stack-lg {
   display: grid;
   gap: 48px;
+  min-width: 0;
 }
 
 .stack-sm {
   display: grid;
   gap: 16px;
+  min-width: 0;
+}
+
+.stack-xl > *,
+.stack-lg > *,
+.stack-sm > * {
+  min-width: 0;
 }
 
 .hero-number {
@@ -292,6 +301,8 @@ ol {
   display: flex;
   align-items: center;
   gap: 12px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .filter-wrap {
@@ -458,7 +469,9 @@ ol {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 100%;
   min-width: 0;
+  width: 100%;
 }
 
 .research-card {
@@ -469,6 +482,7 @@ ol {
   flex-direction: column;
   min-height: 188px;
   min-width: 0;
+  max-width: 100%;
   padding: 24px 22px;
   transition:
     background 150ms ease,
@@ -507,6 +521,7 @@ ol {
 
 .card-price {
   flex-shrink: 0;
+  min-width: 0;
   text-align: right;
 }
 
@@ -522,6 +537,7 @@ ol {
   font-size: 11px;
   gap: 6px;
   margin: 0 0 14px;
+  min-width: 0;
 }
 
 .dot {
@@ -534,6 +550,8 @@ ol {
   border-radius: 3px;
   color: color-mix(in srgb, var(--color-fg) 46%, var(--color-neutral));
   line-height: 1.2;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 3px 6px;
 }
 
@@ -563,6 +581,14 @@ ol {
   align-items: flex-start;
   display: flex;
   gap: 8px;
+  min-width: 0;
+}
+
+.condition span:last-child,
+.research-card .subtle {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .condition-marker {
@@ -1302,6 +1328,7 @@ ol {
 
 .research-card-wrap {
   display: flex;
+  max-width: 100%;
   min-width: 0;
   position: relative;
 }
@@ -1828,10 +1855,13 @@ ol {
   .card-top {
     display: grid;
     gap: 10px;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
   }
 
   .card-price {
     text-align: left;
+    width: 100%;
   }
 
   .conditions {
