@@ -1,4 +1,5 @@
 import type {
+  BitstampPerpQuotesByMarket,
   EnrichedPosition,
   EnrichedRealizedPnlEntry,
   PortfolioSummary,
@@ -19,8 +20,41 @@ export function weightedAverageCost(
   return ((existingShares * existingAverageCost) + (addedShares * addedAverageCost)) / totalShares;
 }
 
-export function enrichPositions(positions: Position[], quotes: QuotesByTicker): EnrichedPosition[] {
+export function enrichPositions(
+  positions: Position[],
+  quotes: QuotesByTicker,
+  perpQuotes: BitstampPerpQuotesByMarket = {}
+): EnrichedPosition[] {
   return positions.map((position) => {
+    if (position.assetClass === "perp") {
+      const market = position.bitstamp_market;
+      const perpQuote = market ? perpQuotes[market] : undefined;
+      if (!perpQuote || perpQuote.mark_price == null) return { ...position, quote_status: "no_data" };
+
+      const direction = position.side === "short" ? -1 : 1;
+      const markPrice = perpQuote.mark_price;
+      const notional = position.shares * markPrice;
+      const entryPrice = position.average_cost;
+      const unrealizedPnl = position.shares * (markPrice - entryPrice) * direction;
+      const marginUsed = position.margin_used
+        ?? (position.leverage ? (position.shares * entryPrice) / position.leverage : position.shares * entryPrice);
+      const totalValue = marginUsed + unrealizedPnl;
+      const pnlPercent = marginUsed > 0 ? (unrealizedPnl / marginUsed) * 100 : 0;
+
+      return {
+        ...position,
+        mark_price: markPrice,
+        current_price: markPrice,
+        notional,
+        total_value: totalValue,
+        pnl_dollars: unrealizedPnl,
+        pnl_percent: pnlPercent,
+        day_change: null,
+        day_change_percent: null,
+        funding_rate: perpQuote.funding_rate
+      };
+    }
+
     const quote = quotes[position.ticker];
     if (!quote || quote.price == null) return { ...position, quote_status: "no_data" };
 
@@ -44,10 +78,10 @@ export function enrichPositions(positions: Position[], quotes: QuotesByTicker): 
 export function portfolioSummary(positions: EnrichedPosition[]): PortfolioSummary {
   const withData = positions.filter((position) => position.total_value != null);
   const totalValue = withData.reduce((sum, position) => sum + (position.total_value ?? 0), 0);
-  const dayChangeDollars = withData.reduce(
-    (sum, position) => sum + position.shares * (position.day_change ?? 0),
-    0
-  );
+  const dayChangeDollars = withData.reduce((sum, position) => {
+    if (position.assetClass === "perp") return sum;
+    return sum + position.shares * (position.day_change ?? 0);
+  }, 0);
   const dayChangePercent = totalValue > 0 ? (dayChangeDollars / (totalValue - dayChangeDollars)) * 100 : 0;
 
   return {

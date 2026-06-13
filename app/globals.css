@@ -350,6 +350,45 @@ ol {
   margin-top: 16px;
 }
 
+.perp-market-cell {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.perp-value-cell {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+
+.perp-value-cell .muted {
+  font-size: 0.75rem;
+}
+
+.perp-side-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  vertical-align: middle;
+  line-height: 1.5;
+}
+
+.perp-side-badge.long {
+  background: color-mix(in srgb, var(--color-gain) 15%, transparent);
+  color: var(--color-gain);
+}
+
+.perp-side-badge.short {
+  background: color-mix(in srgb, var(--color-loss) 15%, transparent);
+  color: var(--color-loss);
+}
+
 /* .filter-bar / .filter-group removed — replaced by .filter-wrap dropdown */
 
 .research-toolbar,

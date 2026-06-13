@@ -6,20 +6,25 @@ import { weightedAverageCost } from "@/lib/portfolio";
 const SUPPORTED_CURRENCIES = ["USD", "EUR", "GBP", "JPY"] as const;
 
 const addSchema = z.object({
-  ticker: z.string().min(1).max(20).transform((v) => v.toUpperCase()),
+  ticker: z.string().min(1).max(30).transform((v) => v.toUpperCase()),
   company: z.string().min(1).max(200),
-  assetClass: z.enum(["stock", "crypto"]).optional(),
+  assetClass: z.enum(["stock", "crypto", "perp"]).optional(),
   shares: z.number().finite().positive(),
   average_cost: z.number().finite().nonnegative(),
   currency: z.enum(SUPPORTED_CURRENCIES),
   entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   sector: z.string().min(1).max(100),
   thesis_id: z.string().max(100).optional(),
-  coinGeckoId: z.string().max(100).optional()
+  coinGeckoId: z.string().max(100).optional(),
+  side: z.enum(["long", "short"]).optional(),
+  leverage: z.number().finite().positive().optional(),
+  margin_mode: z.enum(["isolated", "shared"]).optional(),
+  margin_used: z.number().finite().positive().optional(),
+  bitstamp_market: z.string().regex(/^[a-z0-9-]{1,40}$/).optional()
 });
 
 const updateSchema = addSchema.extend({
-  originalTicker: z.string().min(1).max(20).transform((v) => v.toUpperCase()),
+  originalTicker: z.string().min(1).max(30).transform((v) => v.toUpperCase()),
   shares: z.number().finite().nonnegative()
 });
 
@@ -58,7 +63,31 @@ export async function POST(request: Request) {
   const positions = await getPositions();
   const existing = positions.find((p) => p.ticker === parsed.data.ticker);
 
-  const average_cost_usd = await submittedCostUsd(parsed.data);
+  const isPerp = parsed.data.assetClass === "perp";
+
+  if (existing && isPerp) {
+    // Perp: weighted average entry price, additive quantity + margin
+    const totalShares = existing.shares + parsed.data.shares;
+    const avgEntry = weightedAverageCost(existing.shares, existing.average_cost, parsed.data.shares, parsed.data.average_cost);
+    const totalMargin = (existing.margin_used ?? 0) + (parsed.data.margin_used ?? 0);
+    const next = positions.map((position) =>
+      position.ticker === parsed.data.ticker
+        ? {
+            ...position,
+            ...parsed.data,
+            shares: totalShares,
+            average_cost: avgEntry,
+            average_cost_usd: avgEntry,
+            currency: "USD",
+            margin_used: totalMargin > 0 ? totalMargin : undefined
+          }
+        : position
+    );
+    await setPositions(next);
+    return NextResponse.json({ ok: true, merged: true });
+  }
+
+  const average_cost_usd = isPerp ? parsed.data.average_cost : await submittedCostUsd(parsed.data);
   if (existing) {
     const oldCostUsd = await averageCostUsd(existing);
     const newCostUsd = average_cost_usd ?? parsed.data.average_cost;

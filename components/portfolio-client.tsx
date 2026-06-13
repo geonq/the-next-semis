@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import {
@@ -11,6 +11,8 @@ import {
   realizedPnlSummary
 } from "@/lib/portfolio";
 import type {
+  BitstampPerpQuote,
+  BitstampPerpQuotesByMarket,
   EnrichedPosition,
   EnrichedRealizedPnlEntry,
   Position,
@@ -21,11 +23,13 @@ import type {
 import { SegmentedTabs } from "./segmented-tabs";
 import { TickerAutocomplete } from "./ticker-autocomplete";
 import { useLiveQuotes } from "./use-live-quotes";
+import { useLivePerpQuotes } from "./use-live-perp-quotes";
 
 export function PortfolioClient({
   positions,
   realizedPnl,
   initialQuotes,
+  initialPerpQuotes,
   tickers,
   coingeckoParam,
   watchlist,
@@ -34,6 +38,7 @@ export function PortfolioClient({
   positions: Position[];
   realizedPnl: RealizedPnlEntry[];
   initialQuotes: QuotesByTicker;
+  initialPerpQuotes: BitstampPerpQuotesByMarket;
   tickers: string[];
   coingeckoParam?: string;
   watchlist: WatchlistEntry[];
@@ -41,7 +46,15 @@ export function PortfolioClient({
 }) {
   const router = useRouter();
   const quotes = useLiveQuotes(initialQuotes, tickers, coingeckoParam);
-  const enriched = enrichPositions(positions, quotes).sort((a, b) => (b.total_value ?? 0) - (a.total_value ?? 0));
+  const perpMarkets = useMemo(
+    () => [...new Set([
+      ...positions.flatMap((p) => p.assetClass === "perp" && p.bitstamp_market ? [p.bitstamp_market] : []),
+      ...realizedPnl.flatMap((e) => e.assetClass === "perp" && e.bitstamp_market ? [e.bitstamp_market] : [])
+    ])],
+    [positions, realizedPnl]
+  );
+  const perpQuotes = useLivePerpQuotes(initialPerpQuotes, perpMarkets);
+  const enriched = enrichPositions(positions, quotes, perpQuotes).sort((a, b) => (b.total_value ?? 0) - (a.total_value ?? 0));
   const summary = portfolioSummary(enriched);
   const realizedEntries = enrichRealizedPnl(realizedPnl).sort((a, b) => b.closed_at.localeCompare(a.closed_at));
   const realizedSummary = realizedPnlSummary(realizedEntries);
@@ -104,55 +117,72 @@ export function PortfolioClient({
           <thead>
             <tr>
               <th>Position</th>
-              <th>Amount</th>
-              <th>Avg Cost</th>
-              <th>Current</th>
+              <th>Qty</th>
+              <th>Entry</th>
+              <th>Mark / Price</th>
               <th>Value</th>
               <th>PnL $</th>
               <th>PnL %</th>
-              <th>Day</th>
+              <th>Day / FR</th>
               {isAdmin ? <th /> : null}
             </tr>
           </thead>
           <tbody>
-            {enriched.map((position) => (
-              <tr key={position.ticker}>
-                <td>
-                  <span className="position-cell">
-                    <span className="ticker">{position.ticker}</span>
-                    <span className="subtle">{position.company}</span>
-                  </span>
-                </td>
-                <td className="tabular">{position.shares.toLocaleString("en-US")}</td>
-                <td className="tabular">{fmtUsd(position.average_cost_usd ?? position.average_cost)}</td>
-                <td className="tabular">{fmtUsd(position.current_price)}</td>
-                <td className="tabular">{fmtUsd(position.total_value)}</td>
-                <td className={`tabular ${signClass(position.pnl_dollars)}`}>{fmtSignedUsd(position.pnl_dollars)}</td>
-                <td className={`tabular ${signClass(position.pnl_percent)}`}>{fmtSignedPct(position.pnl_percent)}</td>
-                <td className={`tabular ${signClass(position.day_change_percent)}`}>
-                  {fmtSignedPct(position.day_change_percent)}
-                </td>
-                {isAdmin ? (
-                  <td className="position-actions">
-                    <button
-                      className="edit-btn"
-                      onClick={() => setEditingPosition(positions.find((p) => p.ticker === position.ticker) ?? null)}
-                      type="button"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="delete-btn"
-                      onClick={() => deletePosition(position.ticker)}
-                      type="button"
-                      aria-label={`Remove ${position.ticker}`}
-                    >
-                      ✕
-                    </button>
+            {enriched.map((position) => {
+              const isPerp = position.assetClass === "perp";
+              return (
+                <tr key={position.ticker}>
+                  <td>
+                    <span className="position-cell">
+                      <span className="ticker">
+                        {position.ticker}
+                        {isPerp && position.side ? (
+                          <span className={`perp-side-badge ${position.side}`}>{position.side === "long" ? "L" : "S"}</span>
+                        ) : null}
+                      </span>
+                      <span className="subtle">{position.company}</span>
+                    </span>
                   </td>
-                ) : null}
-              </tr>
-            ))}
+                  <td className="tabular">{position.shares.toLocaleString("en-US", { maximumFractionDigits: 8 })}</td>
+                  <td className="tabular">{fmtUsd(position.average_cost_usd ?? position.average_cost)}</td>
+                  <td className="tabular">{fmtUsd(position.current_price)}</td>
+                  <td className="tabular">
+                    {isPerp && position.notional != null ? (
+                      <span className="perp-value-cell">
+                        <span>{fmtUsd(position.notional)}</span>
+                        <span className="muted">margin {fmtUsd(position.margin_used)}</span>
+                      </span>
+                    ) : fmtUsd(position.total_value)}
+                  </td>
+                  <td className={`tabular ${signClass(position.pnl_dollars)}`}>{fmtSignedUsd(position.pnl_dollars)}</td>
+                  <td className={`tabular ${signClass(position.pnl_percent)}`}>{fmtSignedPct(position.pnl_percent)}</td>
+                  <td className={`tabular ${isPerp ? signClass(position.funding_rate) : signClass(position.day_change_percent)}`}>
+                    {isPerp
+                      ? (position.funding_rate != null ? `fr ${fmtFundingRate(position.funding_rate)}` : "—")
+                      : fmtSignedPct(position.day_change_percent)}
+                  </td>
+                  {isAdmin ? (
+                    <td className="position-actions">
+                      <button
+                        className="edit-btn"
+                        onClick={() => setEditingPosition(positions.find((p) => p.ticker === position.ticker) ?? null)}
+                        type="button"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="delete-btn"
+                        onClick={() => deletePosition(position.ticker)}
+                        type="button"
+                        aria-label={`Remove ${position.ticker}`}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -160,6 +190,7 @@ export function PortfolioClient({
       <RealizedPnlSection
         entries={realizedEntries}
         summary={realizedSummary}
+        perpQuotes={perpQuotes}
         isAdmin={isAdmin}
         onEdit={(id) => setEditingRealizedPnl(realizedPnl.find((entry) => entry.id === id) ?? null)}
         onDelete={deleteRealizedPnl}
@@ -218,17 +249,30 @@ function MobilePositionRow({
         <div className="m-pos-detail-inner">
           <div className="m-pos-stats">
             <div className="m-pos-stat">
-              <span className="m-pos-stat-label">Avg Cost</span>
+              <span className="m-pos-stat-label">{position.assetClass === "perp" ? "Entry" : "Avg Cost"}</span>
               <span className="m-pos-stat-value tabular">{fmtUsd(position.average_cost_usd ?? position.average_cost)}</span>
             </div>
             <div className="m-pos-stat">
-              <span className="m-pos-stat-label">Current</span>
+              <span className="m-pos-stat-label">{position.assetClass === "perp" ? "Mark" : "Current"}</span>
               <span className="m-pos-stat-value tabular">{fmtUsd(position.current_price)}</span>
             </div>
-            <div className="m-pos-stat">
-              <span className="m-pos-stat-label">Value</span>
-              <span className="m-pos-stat-value tabular">{fmtUsd(position.total_value)}</span>
-            </div>
+            {position.assetClass === "perp" ? (
+              <>
+                <div className="m-pos-stat">
+                  <span className="m-pos-stat-label">Notional</span>
+                  <span className="m-pos-stat-value tabular">{fmtUsd(position.notional)}</span>
+                </div>
+                <div className="m-pos-stat">
+                  <span className="m-pos-stat-label">Margin</span>
+                  <span className="m-pos-stat-value tabular">{fmtUsd(position.margin_used)}</span>
+                </div>
+              </>
+            ) : (
+              <div className="m-pos-stat">
+                <span className="m-pos-stat-label">Value</span>
+                <span className="m-pos-stat-value tabular">{fmtUsd(position.total_value)}</span>
+              </div>
+            )}
             <div className="m-pos-stat">
               <span className="m-pos-stat-label">PnL $</span>
               <span className={`m-pos-stat-value tabular ${signClass(position.pnl_dollars)}`}>
@@ -241,12 +285,21 @@ function MobilePositionRow({
                 {fmtSignedPct(position.pnl_percent)}
               </span>
             </div>
-            <div className="m-pos-stat">
-              <span className="m-pos-stat-label">Day</span>
-              <span className={`m-pos-stat-value tabular ${signClass(position.day_change_percent)}`}>
-                {fmtSignedPct(position.day_change_percent)}
-              </span>
-            </div>
+            {position.assetClass === "perp" ? (
+              <div className="m-pos-stat">
+                <span className="m-pos-stat-label">Funding</span>
+                <span className={`m-pos-stat-value tabular ${signClass(position.funding_rate)}`}>
+                  {position.funding_rate != null ? fmtFundingRate(position.funding_rate) : "—"}
+                </span>
+              </div>
+            ) : (
+              <div className="m-pos-stat">
+                <span className="m-pos-stat-label">Day</span>
+                <span className={`m-pos-stat-value tabular ${signClass(position.day_change_percent)}`}>
+                  {fmtSignedPct(position.day_change_percent)}
+                </span>
+              </div>
+            )}
           </div>
           {isAdmin ? (
             <div className="m-pos-actions">
@@ -325,16 +378,20 @@ function RealizedLeaderList({
 function RealizedPnlSection({
   entries,
   summary,
+  perpQuotes,
   isAdmin,
   onEdit,
   onDelete
 }: {
   entries: EnrichedRealizedPnlEntry[];
   summary: ReturnType<typeof realizedPnlSummary>;
+  perpQuotes: BitstampPerpQuotesByMarket;
   isAdmin: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const hasPerpRows = entries.some((e) => e.assetClass === "perp" && e.bitstamp_market);
+
   return (
     <section className="hairline">
       <div className="rpnl-header">
@@ -359,6 +416,7 @@ function RealizedPnlSection({
           <MobileRealizedPnlRow
             key={entry.id}
             entry={entry}
+            perpQuote={entry.bitstamp_market ? perpQuotes[entry.bitstamp_market] : undefined}
             isAdmin={isAdmin}
             onDelete={onDelete}
             onEdit={onEdit}
@@ -380,46 +438,64 @@ function RealizedPnlSection({
               <th>RPNL $</th>
               <th>RPNL %</th>
               <th>Closed</th>
+              {hasPerpRows ? <th>Perp Market</th> : null}
               {isAdmin ? <th /> : null}
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry) => (
-              <tr key={entry.id}>
-                <td>
-                  <span className="position-cell">
-                    <span className="ticker">{entry.ticker}</span>
-                    <span className="subtle">{entry.company}</span>
-                  </span>
-                </td>
-                <td>{entry.side}</td>
-                <td className="tabular">{fmtQuantity(entry.quantity)}</td>
-                <td className="tabular">{fmtUsd(entry.entry_price)}</td>
-                <td className="tabular">{fmtUsd(entry.exit_price)}</td>
-                <td className="tabular">{fmtUsd(entry.fees ?? 0)}</td>
-                <td className="tabular">{marginLabel(entry)}</td>
-                <td className={`tabular ${signClass(entry.realized_pnl)}`}>{fmtSignedUsd(entry.realized_pnl)}</td>
-                <td className={`tabular ${signClass(entry.realized_pnl_percent)}`}>
-                  {fmtSignedPct(entry.realized_pnl_percent)}
-                </td>
-                <td className="tabular">{entry.closed_at}</td>
-                {isAdmin ? (
-                  <td className="position-actions">
-                    <button className="edit-btn" onClick={() => onEdit(entry.id)} type="button">
-                      Edit
-                    </button>
-                    <button
-                      className="delete-btn"
-                      onClick={() => onDelete(entry.id)}
-                      type="button"
-                      aria-label={`Remove realized PnL entry for ${entry.ticker}`}
-                    >
-                      ✕
-                    </button>
+            {entries.map((entry) => {
+              const perpQuote = entry.bitstamp_market ? perpQuotes[entry.bitstamp_market] : undefined;
+              return (
+                <tr key={entry.id}>
+                  <td>
+                    <span className="position-cell">
+                      <span className="ticker">{entry.ticker}</span>
+                      <span className="subtle">{entry.company}</span>
+                    </span>
                   </td>
-                ) : null}
-              </tr>
-            ))}
+                  <td>{entry.side}</td>
+                  <td className="tabular">{fmtQuantity(entry.quantity)}</td>
+                  <td className="tabular">{fmtUsd(entry.entry_price)}</td>
+                  <td className="tabular">{fmtUsd(entry.exit_price)}</td>
+                  <td className="tabular">{fmtUsd(entry.fees ?? 0)}</td>
+                  <td className="tabular">{marginLabel(entry)}</td>
+                  <td className={`tabular ${signClass(entry.realized_pnl)}`}>{fmtSignedUsd(entry.realized_pnl)}</td>
+                  <td className={`tabular ${signClass(entry.realized_pnl_percent)}`}>
+                    {fmtSignedPct(entry.realized_pnl_percent)}
+                  </td>
+                  <td className="tabular">{entry.closed_at}</td>
+                  {hasPerpRows ? (
+                    <td>
+                      {perpQuote ? (
+                        <span className="perp-market-cell">
+                          <span>mark {fmtUsd(perpQuote.mark_price)}</span>
+                          <span className={signClass(perpQuote.funding_rate)}>
+                            fr {fmtFundingRate(perpQuote.funding_rate)}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                  ) : null}
+                  {isAdmin ? (
+                    <td className="position-actions">
+                      <button className="edit-btn" onClick={() => onEdit(entry.id)} type="button">
+                        Edit
+                      </button>
+                      <button
+                        className="delete-btn"
+                        onClick={() => onDelete(entry.id)}
+                        type="button"
+                        aria-label={`Remove realized PnL entry for ${entry.ticker}`}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {entries.length === 0 ? <p className="muted rpnl-empty">No realized PnL entries yet.</p> : null}
@@ -430,11 +506,13 @@ function RealizedPnlSection({
 
 function MobileRealizedPnlRow({
   entry,
+  perpQuote,
   isAdmin,
   onDelete,
   onEdit
 }: {
   entry: EnrichedRealizedPnlEntry;
+  perpQuote: BitstampPerpQuote | undefined;
   isAdmin: boolean;
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
@@ -482,6 +560,20 @@ function MobileRealizedPnlRow({
               <span className="m-pos-stat-label">Closed</span>
               <span className="m-pos-stat-value tabular">{entry.closed_at}</span>
             </div>
+            {perpQuote ? (
+              <>
+                <div className="m-pos-stat">
+                  <span className="m-pos-stat-label">Mark</span>
+                  <span className="m-pos-stat-value tabular">{fmtUsd(perpQuote.mark_price)}</span>
+                </div>
+                <div className="m-pos-stat">
+                  <span className="m-pos-stat-label">Funding</span>
+                  <span className={`m-pos-stat-value tabular ${signClass(perpQuote.funding_rate)}`}>
+                    {fmtFundingRate(perpQuote.funding_rate)}
+                  </span>
+                </div>
+              </>
+            ) : null}
           </div>
           {isAdmin ? (
             <div className="m-pos-actions">
@@ -574,7 +666,7 @@ function Concentration({
   );
 }
 
-type AssetClass = "stock" | "crypto";
+type AssetClass = "stock" | "crypto" | "perp";
 type PositionFormState = {
   ticker: string;
   company: string;
@@ -585,6 +677,12 @@ type PositionFormState = {
   currency: string;
   entry_date: string;
   sector: string;
+  // Perp
+  side: "long" | "short";
+  leverage: string;
+  margin_mode: "isolated" | "shared";
+  margin_used: string;
+  bitstamp_market: string;
 };
 
 const emptyPositionForm: PositionFormState = {
@@ -596,35 +694,58 @@ const emptyPositionForm: PositionFormState = {
   average_cost: "",
   currency: "USD",
   entry_date: "",
-  sector: ""
+  sector: "",
+  side: "long",
+  leverage: "",
+  margin_mode: "isolated",
+  margin_used: "",
+  bitstamp_market: ""
 };
 
 function formFromPosition(position: Position): PositionFormState {
   return {
     ticker: position.ticker,
     company: position.company,
-    assetClass: position.assetClass === "crypto" ? "crypto" : "stock",
+    assetClass: position.assetClass === "crypto" ? "crypto" : position.assetClass === "perp" ? "perp" : "stock",
     coinGeckoId: position.coinGeckoId ?? "",
     shares: String(position.shares),
     average_cost: String(position.average_cost_usd ?? position.average_cost),
-    currency: position.average_cost_usd != null ? "USD" : position.currency,
+    currency: position.assetClass === "perp" ? "USD" : (position.average_cost_usd != null ? "USD" : position.currency),
     entry_date: position.entry_date ?? "",
-    sector: position.sector
+    sector: position.sector,
+    side: position.side ?? "long",
+    leverage: position.leverage != null ? String(position.leverage) : "",
+    margin_mode: position.margin_mode ?? "isolated",
+    margin_used: position.margin_used != null ? String(position.margin_used) : "",
+    bitstamp_market: position.bitstamp_market ?? ""
   };
 }
 
 function positionPayload(form: PositionFormState) {
-  return {
+  const base = {
     ticker: form.ticker,
     company: form.company,
     assetClass: form.assetClass,
-    coinGeckoId: form.coinGeckoId || undefined,
     shares: parseFloat(form.shares),
     average_cost: parseFloat(form.average_cost),
-    currency: form.currency,
+    currency: form.assetClass === "perp" ? "USD" : form.currency,
     entry_date: form.entry_date || undefined,
     sector: form.sector
   };
+  if (form.assetClass === "crypto") {
+    return { ...base, coinGeckoId: form.coinGeckoId || undefined };
+  }
+  if (form.assetClass === "perp") {
+    return {
+      ...base,
+      side: form.side,
+      leverage: form.leverage ? parseFloat(form.leverage) : undefined,
+      margin_mode: form.margin_mode,
+      margin_used: form.margin_used ? parseFloat(form.margin_used) : undefined,
+      bitstamp_market: form.bitstamp_market || undefined
+    };
+  }
+  return base;
 }
 
 type RealizedPnlFormState = {
@@ -639,6 +760,7 @@ type RealizedPnlFormState = {
   leverage: string;
   margin_mode: "isolated" | "shared";
   margin_used: string;
+  bitstamp_market: string;
   currency: string;
   opened_at: string;
   closed_at: string;
@@ -658,6 +780,7 @@ const emptyRealizedPnlForm: RealizedPnlFormState = {
   leverage: "",
   margin_mode: "isolated",
   margin_used: "",
+  bitstamp_market: "",
   currency: "USD",
   opened_at: "",
   closed_at: "",
@@ -678,6 +801,7 @@ function formFromRealizedPnl(entry: RealizedPnlEntry): RealizedPnlFormState {
     leverage: entry.leverage != null ? String(entry.leverage) : "",
     margin_mode: entry.margin_mode ?? "isolated",
     margin_used: entry.margin_used != null ? String(entry.margin_used) : "",
+    bitstamp_market: entry.bitstamp_market ?? "",
     currency: entry.currency,
     opened_at: entry.opened_at ?? "",
     closed_at: entry.closed_at,
@@ -687,6 +811,7 @@ function formFromRealizedPnl(entry: RealizedPnlEntry): RealizedPnlFormState {
 }
 
 function realizedPnlPayload(form: RealizedPnlFormState) {
+  const isPerp = form.assetClass === "perp";
   return {
     ticker: form.ticker,
     company: form.company,
@@ -696,9 +821,10 @@ function realizedPnlPayload(form: RealizedPnlFormState) {
     entry_price: parseFloat(form.entry_price),
     exit_price: parseFloat(form.exit_price),
     fees: form.fees ? parseFloat(form.fees) : 0,
-    leverage: form.leverage ? parseFloat(form.leverage) : undefined,
-    margin_mode: form.assetClass === "perp" ? form.margin_mode : undefined,
-    margin_used: form.margin_used ? parseFloat(form.margin_used) : undefined,
+    leverage: isPerp && form.leverage ? parseFloat(form.leverage) : undefined,
+    margin_mode: isPerp ? form.margin_mode : undefined,
+    margin_used: isPerp && form.margin_used ? parseFloat(form.margin_used) : undefined,
+    bitstamp_market: isPerp && form.bitstamp_market ? form.bitstamp_market : undefined,
     currency: form.currency,
     opened_at: form.opened_at || undefined,
     closed_at: form.closed_at,
@@ -711,6 +837,12 @@ function fmtQuantity(value: number): string {
   return value.toLocaleString("en-US", {
     maximumFractionDigits: 8
   });
+}
+
+function fmtFundingRate(value: number | null | undefined): string {
+  if (value == null) return "—";
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(4)}%`;
 }
 
 function marginLabel(entry: EnrichedRealizedPnlEntry): string {
@@ -905,27 +1037,24 @@ function RealizedPnlFormFields({
   form: RealizedPnlFormState;
   setForm: Dispatch<SetStateAction<RealizedPnlFormState>>;
 }) {
+  const isPerp = form.assetClass === "perp";
   return (
     <div className="add-fields">
-      <select
-        className="add-input add-select"
-        value={form.assetClass}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, assetClass: e.target.value as RealizedPnlFormState["assetClass"] }))
+      <SegmentedTabs
+        options={["Stock", "Crypto", "Perp"]}
+        value={form.assetClass === "crypto" ? "Crypto" : isPerp ? "Perp" : "Stock"}
+        onChange={(value) =>
+          setForm((f) => ({
+            ...f,
+            assetClass: value === "Crypto" ? "crypto" : value === "Perp" ? "perp" : "stock"
+          }))
         }
-      >
-        <option value="stock">Stock</option>
-        <option value="crypto">Crypto</option>
-        <option value="perp">Perp</option>
-      </select>
-      <select
-        className="add-input add-select"
-        value={form.side}
-        onChange={(e) => setForm((f) => ({ ...f, side: e.target.value as RealizedPnlFormState["side"] }))}
-      >
-        <option value="long">Long</option>
-        <option value="short">Short</option>
-      </select>
+      />
+      <SegmentedTabs
+        options={["Long", "Short"]}
+        value={form.side === "short" ? "Short" : "Long"}
+        onChange={(value) => setForm((f) => ({ ...f, side: value === "Short" ? "short" : "long" }))}
+      />
       <input
         className="add-input"
         placeholder="Ticker"
@@ -935,7 +1064,7 @@ function RealizedPnlFormFields({
       />
       <input
         className="add-input"
-        placeholder="Company / market"
+        placeholder={isPerp ? "Market name" : "Company"}
         required
         value={form.company}
         onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
@@ -951,7 +1080,7 @@ function RealizedPnlFormFields({
       />
       <input
         className="add-input"
-        placeholder="Avg entry"
+        placeholder="Avg entry price"
         required
         type="number"
         step="any"
@@ -960,7 +1089,7 @@ function RealizedPnlFormFields({
       />
       <input
         className="add-input"
-        placeholder="Avg exit"
+        placeholder="Avg exit price"
         required
         type="number"
         step="any"
@@ -975,7 +1104,7 @@ function RealizedPnlFormFields({
         value={form.fees}
         onChange={(e) => setForm((f) => ({ ...f, fees: e.target.value }))}
       />
-      {form.assetClass === "perp" ? (
+      {isPerp ? (
         <>
           <input
             className="add-input"
@@ -1003,18 +1132,26 @@ function RealizedPnlFormFields({
             value={form.margin_used}
             onChange={(e) => setForm((f) => ({ ...f, margin_used: e.target.value }))}
           />
+          <input
+            className="add-input"
+            placeholder="Bitstamp market (e.g. btcusd-perp)"
+            value={form.bitstamp_market}
+            onChange={(e) => setForm((f) => ({ ...f, bitstamp_market: e.target.value.toLowerCase() }))}
+          />
         </>
       ) : null}
-      <select
-        className="add-input add-select"
-        value={form.currency}
-        onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-      >
-        <option value="USD">USD</option>
-        <option value="EUR">EUR</option>
-        <option value="GBP">GBP</option>
-        <option value="JPY">JPY</option>
-      </select>
+      {!isPerp ? (
+        <select
+          className="add-input add-select"
+          value={form.currency}
+          onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
+        >
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+          <option value="JPY">JPY</option>
+        </select>
+      ) : null}
       <input
         className="add-input"
         type="date"
@@ -1054,65 +1191,137 @@ function PositionFormFields({
   form: PositionFormState;
   setForm: Dispatch<SetStateAction<PositionFormState>>;
 }) {
+  function switchClass(next: AssetClass) {
+    setForm((f) => ({ ...f, ticker: "", company: "", coinGeckoId: "", bitstamp_market: "", assetClass: next }));
+  }
+
   return (
     <div className="add-fields">
       <SegmentedTabs
-        options={["Stock", "Crypto"]}
-        value={form.assetClass === "crypto" ? "Crypto" : "Stock"}
-        onChange={(value) =>
-          setForm((f) => ({
-            ...f,
-            ticker: "",
-            company: "",
-            coinGeckoId: "",
-            assetClass: value === "Crypto" ? "crypto" : "stock"
-          }))
-        }
+        options={["Stock", "Crypto", "Perp"]}
+        value={form.assetClass === "crypto" ? "Crypto" : form.assetClass === "perp" ? "Perp" : "Stock"}
+        onChange={(value) => switchClass(value === "Crypto" ? "crypto" : value === "Perp" ? "perp" : "stock")}
       />
-      <TickerAutocomplete
-        ticker={form.ticker}
-        company={form.company}
-        assetClass={form.assetClass}
-        onSelect={(ticker, company, _assetType, coinGeckoId) =>
-          setForm((f) => ({ ...f, ticker, company: company ?? f.company, coinGeckoId: coinGeckoId ?? f.coinGeckoId }))
-        }
-        required
-      />
-      <input
-        className="add-input"
-        placeholder="Company"
-        required
-        value={form.company}
-        onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
-      />
-      <input
-        className="add-input"
-        placeholder={form.assetClass === "crypto" ? "Coins" : "Shares"}
-        required
-        type="number"
-        step="any"
-        value={form.shares}
-        onChange={(e) => setForm((f) => ({ ...f, shares: e.target.value }))}
-      />
-      <input
-        className="add-input"
-        placeholder="Avg cost"
-        required
-        type="number"
-        step="any"
-        value={form.average_cost}
-        onChange={(e) => setForm((f) => ({ ...f, average_cost: e.target.value }))}
-      />
-      <select
-        className="add-input add-select"
-        value={form.currency}
-        onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-      >
-        <option value="USD">USD</option>
-        <option value="EUR">EUR</option>
-        <option value="GBP">GBP</option>
-        <option value="JPY">JPY</option>
-      </select>
+
+      {form.assetClass === "perp" ? (
+        <>
+          <SegmentedTabs
+            options={["Long", "Short"]}
+            value={form.side === "short" ? "Short" : "Long"}
+            onChange={(value) => setForm((f) => ({ ...f, side: value === "Short" ? "short" : "long" }))}
+          />
+          <input
+            className="add-input"
+            placeholder="Ticker (e.g. BTC)"
+            required
+            value={form.ticker}
+            onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value.toUpperCase() }))}
+          />
+          <input
+            className="add-input"
+            placeholder="Market name (e.g. Bitcoin Perp)"
+            required
+            value={form.company}
+            onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
+          />
+          <input
+            className="add-input"
+            placeholder="Bitstamp market (e.g. btcusd-perp)"
+            value={form.bitstamp_market}
+            onChange={(e) => setForm((f) => ({ ...f, bitstamp_market: e.target.value.toLowerCase() }))}
+          />
+          <input
+            className="add-input"
+            placeholder="Quantity (contracts)"
+            required
+            type="number"
+            step="any"
+            value={form.shares}
+            onChange={(e) => setForm((f) => ({ ...f, shares: e.target.value }))}
+          />
+          <input
+            className="add-input"
+            placeholder="Avg entry price"
+            required
+            type="number"
+            step="any"
+            value={form.average_cost}
+            onChange={(e) => setForm((f) => ({ ...f, average_cost: e.target.value }))}
+          />
+          <input
+            className="add-input"
+            placeholder="Leverage (e.g. 10)"
+            type="number"
+            step="any"
+            value={form.leverage}
+            onChange={(e) => setForm((f) => ({ ...f, leverage: e.target.value }))}
+          />
+          <select
+            className="add-input add-select"
+            value={form.margin_mode}
+            onChange={(e) => setForm((f) => ({ ...f, margin_mode: e.target.value as "isolated" | "shared" }))}
+          >
+            <option value="isolated">Isolated margin</option>
+            <option value="shared">Shared margin</option>
+          </select>
+          <input
+            className="add-input"
+            placeholder="Margin used (USD, optional)"
+            type="number"
+            step="any"
+            value={form.margin_used}
+            onChange={(e) => setForm((f) => ({ ...f, margin_used: e.target.value }))}
+          />
+        </>
+      ) : (
+        <>
+          <TickerAutocomplete
+            ticker={form.ticker}
+            company={form.company}
+            assetClass={form.assetClass}
+            onSelect={(ticker, company, _assetType, coinGeckoId) =>
+              setForm((f) => ({ ...f, ticker, company: company ?? f.company, coinGeckoId: coinGeckoId ?? f.coinGeckoId }))
+            }
+            required
+          />
+          <input
+            className="add-input"
+            placeholder="Company"
+            required
+            value={form.company}
+            onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
+          />
+          <input
+            className="add-input"
+            placeholder={form.assetClass === "crypto" ? "Coins" : "Shares"}
+            required
+            type="number"
+            step="any"
+            value={form.shares}
+            onChange={(e) => setForm((f) => ({ ...f, shares: e.target.value }))}
+          />
+          <input
+            className="add-input"
+            placeholder="Avg cost"
+            required
+            type="number"
+            step="any"
+            value={form.average_cost}
+            onChange={(e) => setForm((f) => ({ ...f, average_cost: e.target.value }))}
+          />
+          <select
+            className="add-input add-select"
+            value={form.currency}
+            onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
+          >
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="GBP">GBP</option>
+            <option value="JPY">JPY</option>
+          </select>
+        </>
+      )}
+
       <input
         className="add-input"
         type="date"

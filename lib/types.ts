@@ -1,7 +1,7 @@
 export type Position = {
   ticker: string;
   company: string;
-  assetClass?: "stock" | "crypto";
+  assetClass?: "stock" | "crypto" | "perp";
   shares: number;
   average_cost: number;
   average_cost_usd?: number;
@@ -10,6 +10,12 @@ export type Position = {
   sector: string;
   thesis_id?: string;
   coinGeckoId?: string;
+  // Perp-specific
+  side?: "long" | "short";
+  leverage?: number;
+  margin_mode?: "isolated" | "shared";
+  margin_used?: number;
+  bitstamp_market?: string;
 };
 
 export type RealizedPnlEntry = {
@@ -106,6 +112,10 @@ export type EnrichedPosition = Position & {
   day_change?: number | null;
   day_change_percent?: number | null;
   quote_status?: "no_data";
+  // Perp-specific (from Bitstamp)
+  mark_price?: number;
+  notional?: number;
+  funding_rate?: number | null;
 };
 
 export type PortfolioSummary = {

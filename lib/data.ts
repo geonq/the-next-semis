@@ -6,7 +6,7 @@ import type { Position, RealizedPnlEntry, WatchlistEntry } from "./types";
 const positionSchema = z.object({
   ticker: z.string().min(1).transform((value) => value.toUpperCase()),
   company: z.string().min(1),
-  assetClass: z.enum(["stock", "crypto"]).optional(),
+  assetClass: z.enum(["stock", "crypto", "perp"]).optional(),
   shares: z.number(),
   average_cost: z.number(),
   average_cost_usd: z.number().optional(),
@@ -14,7 +14,12 @@ const positionSchema = z.object({
   currency: z.string().min(1),
   sector: z.string().min(1),
   thesis_id: z.string().optional(),
-  coinGeckoId: z.string().optional()
+  coinGeckoId: z.string().optional(),
+  side: z.enum(["long", "short"]).optional(),
+  leverage: z.number().finite().positive().optional(),
+  margin_mode: z.enum(["isolated", "shared"]).optional(),
+  margin_used: z.number().finite().positive().optional(),
+  bitstamp_market: z.string().regex(/^[a-z0-9-]{1,40}$/).optional()
 });
 
 export const realizedPnlSchema = z.object({
