@@ -1722,9 +1722,20 @@ ol {
     flex-direction: column;
   }
 
-  .research-toolbar .segmented {
-    flex: 1 1 auto;
-    min-width: 0;
+  .research-toolbar,
+  .reading-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .research-toolbar .segmented,
+  .reading-toolbar .segmented {
+    width: 100%;
+  }
+
+  .reading-toolbar .reading-theme-filter {
+    max-width: 100%;
+    width: 100%;
   }
 
   .filter-panel {
@@ -1746,11 +1757,6 @@ ol {
 
   .discovery-metrics {
     grid-template-columns: repeat(2, 1fr);
-  }
-
-  .research-toolbar,
-  .reading-toolbar {
-    flex-wrap: wrap;
   }
 
   .research-card {

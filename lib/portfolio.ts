@@ -5,10 +5,10 @@ export function enrichPositions(positions: Position[], quotes: QuotesByTicker): 
     const quote = quotes[position.ticker];
     if (!quote || quote.price == null) return { ...position, quote_status: "no_data" };
 
+    const costBasis = position.average_cost_usd ?? position.average_cost;
     const totalValue = position.shares * quote.price;
-    const pnlDollars = position.shares * (quote.price - position.average_cost);
-    const pnlPercent =
-      position.average_cost > 0 ? ((quote.price - position.average_cost) / position.average_cost) * 100 : 0;
+    const pnlDollars = position.shares * (quote.price - costBasis);
+    const pnlPercent = costBasis > 0 ? ((quote.price - costBasis) / costBasis) * 100 : 0;
 
     return {
       ...position,

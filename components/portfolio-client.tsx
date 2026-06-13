@@ -91,7 +91,7 @@ export function PortfolioClient({
                   </span>
                 </td>
                 <td className="tabular">{position.shares.toLocaleString("en-US")}</td>
-                <td className="tabular">{fmtUsd(position.average_cost)}</td>
+                <td className="tabular">{fmtUsd(position.average_cost_usd ?? position.average_cost)}</td>
                 <td className="tabular">{fmtUsd(position.current_price)}</td>
                 <td className="tabular">{fmtUsd(position.total_value)}</td>
                 <td className={`tabular ${signClass(position.pnl_dollars)}`}>{fmtSignedUsd(position.pnl_dollars)}</td>
@@ -146,7 +146,7 @@ function MobilePositionRow({
           <div className="m-pos-stats">
             <div className="m-pos-stat">
               <span className="m-pos-stat-label">Avg Cost</span>
-              <span className="m-pos-stat-value tabular">{fmtUsd(position.average_cost)}</span>
+              <span className="m-pos-stat-value tabular">{fmtUsd(position.average_cost_usd ?? position.average_cost)}</span>
             </div>
             <div className="m-pos-stat">
               <span className="m-pos-stat-label">Current</span>

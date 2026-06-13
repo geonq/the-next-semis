@@ -17,13 +17,13 @@ const addSchema = z.object({
   coinGeckoId: z.string().max(100).optional()
 });
 
-async function fetchHistoricalUsdRate(from: string, date: string): Promise<number | null> {
+async function fetchUsdRate(from: string, date?: string): Promise<number | null> {
   if (from === "USD") return 1;
+  const endpoint = date
+    ? `https://api.frankfurter.app/${date}?from=${encodeURIComponent(from)}&to=USD`
+    : `https://api.frankfurter.app/latest?from=${encodeURIComponent(from)}&to=USD`;
   try {
-    const res = await fetch(
-      `https://api.frankfurter.app/${date}?from=${encodeURIComponent(from)}&to=USD`,
-      { cache: "force-cache" }
-    );
+    const res = await fetch(endpoint, { cache: date ? "force-cache" : "no-store" });
     if (!res.ok) return null;
     const data = await res.json();
     return typeof data?.rates?.USD === "number" ? data.rates.USD : null;
@@ -44,8 +44,8 @@ export async function POST(request: Request) {
   let average_cost_usd: number | undefined;
   if (parsed.data.currency === "USD") {
     average_cost_usd = parsed.data.average_cost;
-  } else if (parsed.data.entry_date) {
-    const rate = await fetchHistoricalUsdRate(parsed.data.currency, parsed.data.entry_date);
+  } else {
+    const rate = await fetchUsdRate(parsed.data.currency, parsed.data.entry_date);
     if (rate != null) average_cost_usd = parsed.data.average_cost * rate;
   }
 
