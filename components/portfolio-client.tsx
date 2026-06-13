@@ -200,8 +200,6 @@ export function PortfolioClient({
         </table>
       </div>
 
-      <RealizedLeaders winners={biggestWinners} losers={biggestLosers} />
-
       <RealizedPnlSection
         entries={realizedEntries}
         summary={realizedSummary}
@@ -210,6 +208,8 @@ export function PortfolioClient({
         onEdit={(id) => setEditingRealizedPnl(realizedPnl.find((entry) => entry.id === id) ?? null)}
         onDelete={deleteRealizedPnl}
       />
+
+      <RealizedLeaders winners={biggestWinners} losers={biggestLosers} />
 
       <Concentration enriched={enriched} watchlist={watchlist} positions={positions} />
 
