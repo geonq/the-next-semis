@@ -1,7 +1,8 @@
 import { z } from "zod";
-import type { Candle, NewsItem, Quote, QuotesByTicker } from "./types";
+import type { BitstampPerpQuote, BitstampPerpQuotesByMarket, Candle, NewsItem, Quote, QuotesByTicker } from "./types";
 
 const yahooBase = "https://query1.finance.yahoo.com";
+const bitstampBase = "https://www.bitstamp.net";
 
 // --- Yahoo crumb auth ---
 // Yahoo v7/v10 endpoints require a session cookie + matching crumb since 2024.
@@ -66,6 +67,7 @@ export function isValidTicker(symbol: string): boolean {
   return tickerPattern.test(symbol);
 }
 export const MAX_QUOTE_SYMBOLS = 60;
+export const MAX_PERP_MARKETS = 25;
 export const MAX_SEARCH_QUERY = 64;
 // Allowlist of Yahoo chart ranges we actually request; anything else falls back to 10y.
 export const historyRanges = new Set(["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"]);
@@ -108,6 +110,98 @@ const chartResponseSchema = z.object({
     result: z.array(z.any()).nullable()
   })
 });
+
+const bitstampPerpMarketPattern = /^[a-z0-9]+usd-perp$/;
+export function isValidBitstampPerpMarket(market: string): boolean {
+  return bitstampPerpMarketPattern.test(market);
+}
+
+export function bitstampPerpMarketSymbol(ticker: string, explicitMarket?: string): string | null {
+  const candidate = (explicitMarket || ticker).trim().toLowerCase().replace(/\s+/g, "");
+  if (!candidate) return null;
+  if (isValidBitstampPerpMarket(candidate)) return candidate;
+
+  const withoutSlash = candidate.replace("/", "");
+  if (/^[a-z0-9]+usdperp$/.test(withoutSlash)) return withoutSlash.replace(/usdperp$/, "usd-perp");
+  if (/^[a-z0-9]+usd-perp$/.test(withoutSlash)) return withoutSlash;
+
+  const base = withoutSlash
+    .replace(/-?perp$/, "")
+    .replace(/usd$/, "")
+    .replace(/[^a-z0-9]/g, "");
+  const inferred = `${base}usd-perp`;
+  return base && isValidBitstampPerpMarket(inferred) ? inferred : null;
+}
+
+const bitstampTickerSchema = z.object({
+  timestamp: z.string().optional(),
+  last: z.string().optional(),
+  bid: z.string().optional(),
+  ask: z.string().optional(),
+  market_type: z.string().optional(),
+  mark_price: z.string().optional(),
+  index_price: z.string().optional(),
+  open_interest: z.string().optional(),
+  open_interest_value: z.string().optional()
+});
+
+const bitstampFundingSchema = z.object({
+  funding_rate: z.string().optional(),
+  timestamp: z.string().optional(),
+  market: z.string().optional(),
+  next_funding_time: z.string().optional()
+});
+
+export async function fetchBitstampPerpQuotes(markets: string[]): Promise<BitstampPerpQuotesByMarket> {
+  const symbols = Array.from(new Set(markets.map((market) => market.trim().toLowerCase()).filter(isValidBitstampPerpMarket))).slice(0, MAX_PERP_MARKETS);
+  if (symbols.length === 0) return {};
+
+  const pairs = await Promise.all(
+    symbols.map(async (marketSymbol) => {
+      try {
+        const [tickerResponse, fundingResponse] = await Promise.all([
+          fetch(`${bitstampBase}/api/v2/ticker/${encodeURIComponent(marketSymbol)}/`, {
+            headers: { accept: "application/json" },
+            next: { revalidate: 30 }
+          }),
+          fetch(`${bitstampBase}/api/v2/funding_rate/${encodeURIComponent(marketSymbol)}/`, {
+            headers: { accept: "application/json" },
+            next: { revalidate: 30 }
+          })
+        ]);
+        if (!tickerResponse.ok) return null;
+        const ticker = bitstampTickerSchema.safeParse(await tickerResponse.json());
+        if (!ticker.success || ticker.data.market_type !== "PERPETUAL") return null;
+
+        const funding = fundingResponse.ok
+          ? bitstampFundingSchema.safeParse(await fundingResponse.json())
+          : null;
+        const fundingData = funding?.success ? funding.data : {};
+
+        const quote: BitstampPerpQuote = {
+          market_symbol: marketSymbol,
+          market: fundingData.market ?? bitstampDisplayMarket(marketSymbol),
+          last: parseDecimal(ticker.data.last),
+          bid: parseDecimal(ticker.data.bid),
+          ask: parseDecimal(ticker.data.ask),
+          mark_price: parseDecimal(ticker.data.mark_price),
+          index_price: parseDecimal(ticker.data.index_price),
+          open_interest: parseDecimal(ticker.data.open_interest),
+          open_interest_value: parseDecimal(ticker.data.open_interest_value),
+          funding_rate: parseDecimal(fundingData.funding_rate),
+          next_funding_time: parseTimestamp(fundingData.next_funding_time),
+          timestamp: parseTimestamp(ticker.data.timestamp ?? fundingData.timestamp)
+        };
+
+        return [marketSymbol, quote] as const;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return Object.fromEntries(pairs.filter((pair): pair is readonly [string, BitstampPerpQuote] => pair != null));
+}
 
 export async function fetchQuotes(tickers: string[]): Promise<QuotesByTicker> {
   if (tickers.length === 0) return {};
@@ -547,6 +641,22 @@ function normalizeQuote(raw: z.infer<typeof quoteResultSchema>): Quote {
 
 function numberOrNull(value: unknown): number | null {
   return typeof value === "number" ? value : null;
+}
+
+function parseDecimal(value: string | undefined): number | null {
+  if (value == null) return null;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseTimestamp(value: string | undefined): number | null {
+  if (value == null) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function bitstampDisplayMarket(marketSymbol: string): string {
+  return marketSymbol.replace(/([a-z0-9]+)usd-perp/, (_, base: string) => `${base.toUpperCase()}/USD-PERP`);
 }
 
 function intervalFor(range: string): string {

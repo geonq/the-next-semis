@@ -1,4 +1,12 @@
-import type { EnrichedPosition, PortfolioSummary, Position, QuotesByTicker } from "./types";
+import type {
+  EnrichedPosition,
+  EnrichedRealizedPnlEntry,
+  PortfolioSummary,
+  Position,
+  QuotesByTicker,
+  RealizedPnlEntry,
+  RealizedPnlSummary
+} from "./types";
 
 export function weightedAverageCost(
   existingShares: number,
@@ -61,4 +69,57 @@ export function movers(positions: EnrichedPosition[], direction: "asc" | "desc")
       return direction === "asc" ? left - right : right - left;
     })
     .slice(0, 3);
+}
+
+export function enrichRealizedPnl(entries: RealizedPnlEntry[]): EnrichedRealizedPnlEntry[] {
+  return entries.map((entry) => {
+    const costBasis = entry.quantity * entry.entry_price;
+    const returnBasis =
+      entry.assetClass === "perp"
+        ? entry.margin_used ?? (entry.leverage ? costBasis / entry.leverage : costBasis)
+        : costBasis;
+    const grossPnl =
+      entry.side === "short"
+        ? entry.quantity * (entry.entry_price - entry.exit_price)
+        : entry.quantity * (entry.exit_price - entry.entry_price);
+    const realizedPnl = grossPnl - (entry.fees ?? 0);
+    const realizedPnlPercent = returnBasis > 0 ? (realizedPnl / returnBasis) * 100 : 0;
+
+    return {
+      ...entry,
+      cost_basis: costBasis,
+      return_basis: returnBasis,
+      gross_pnl: grossPnl,
+      realized_pnl: realizedPnl,
+      realized_pnl_percent: realizedPnlPercent
+    };
+  });
+}
+
+export function realizedPnlSummary(entries: EnrichedRealizedPnlEntry[]): RealizedPnlSummary {
+  const winners = entries.filter((entry) => entry.realized_pnl > 0);
+  const losers = entries.filter((entry) => entry.realized_pnl < 0);
+  const totalRealizedPnl = entries.reduce((sum, entry) => sum + entry.realized_pnl, 0);
+
+  return {
+    total_realized_pnl: totalRealizedPnl,
+    winners: winners.length,
+    losers: losers.length,
+    win_rate: entries.length > 0 ? (winners.length / entries.length) * 100 : 0,
+    average_winner: winners.length > 0 ? winners.reduce((sum, entry) => sum + entry.realized_pnl, 0) / winners.length : 0,
+    average_loser: losers.length > 0 ? losers.reduce((sum, entry) => sum + entry.realized_pnl, 0) / losers.length : 0
+  };
+}
+
+export function realizedPnlLeaders(
+  entries: EnrichedRealizedPnlEntry[],
+  direction: "winners" | "losers",
+  limit = 5
+): EnrichedRealizedPnlEntry[] {
+  return entries
+    .filter((entry) => (direction === "winners" ? entry.realized_pnl > 0 : entry.realized_pnl < 0))
+    .sort((a, b) =>
+      direction === "winners" ? b.realized_pnl - a.realized_pnl : a.realized_pnl - b.realized_pnl
+    )
+    .slice(0, limit);
 }

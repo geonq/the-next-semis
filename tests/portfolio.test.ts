@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { enrichPositions, movers, portfolioSummary, weightedAverageCost } from "@/lib/portfolio";
-import type { Position, QuotesByTicker } from "@/lib/types";
+import {
+  enrichPositions,
+  enrichRealizedPnl,
+  movers,
+  portfolioSummary,
+  realizedPnlLeaders,
+  realizedPnlSummary,
+  weightedAverageCost
+} from "@/lib/portfolio";
+import type { Position, QuotesByTicker, RealizedPnlEntry } from "@/lib/types";
 
 const positions: Position[] = [
   { ticker: "NVDA", company: "NVIDIA", shares: 10, average_cost: 100, currency: "USD", sector: "Semis" },
@@ -26,6 +34,47 @@ const quotes: QuotesByTicker = {
     timestamp: 1
   }
 };
+
+const realizedPnl: RealizedPnlEntry[] = [
+  {
+    id: "win-1",
+    ticker: "NVDA",
+    company: "NVIDIA",
+    side: "long",
+    quantity: 10,
+    entry_price: 100,
+    exit_price: 130,
+    fees: 5,
+    currency: "USD",
+    closed_at: "2026-01-10"
+  },
+  {
+    id: "loss-1",
+    ticker: "AMD",
+    company: "AMD",
+    side: "long",
+    quantity: 5,
+    entry_price: 80,
+    exit_price: 70,
+    currency: "USD",
+    closed_at: "2026-01-11"
+  },
+  {
+    id: "short-win",
+    ticker: "BTC-PERP",
+    company: "Bitcoin Perp",
+    assetClass: "perp",
+    side: "short",
+    quantity: 0.5,
+    entry_price: 100000,
+    exit_price: 90000,
+    fees: 10,
+    leverage: 10,
+    margin_mode: "isolated",
+    currency: "USD",
+    closed_at: "2026-01-12"
+  }
+];
 
 describe("portfolio calculations", () => {
   it("enriches positions with value, PnL, and no-data state", () => {
@@ -85,5 +134,30 @@ describe("portfolio calculations", () => {
     const enriched = enrichPositions(positions, positiveQuotes);
 
     expect(movers(enriched, "asc")).toEqual([]);
+  });
+
+  it("enriches realized PnL entries for long and short trades", () => {
+    const [longWin, longLoss, shortWin] = enrichRealizedPnl(realizedPnl);
+
+    expect(longWin.realized_pnl).toBe(295);
+    expect(longWin.realized_pnl_percent).toBe(29.5);
+    expect(longLoss.realized_pnl).toBe(-50);
+    expect(shortWin.realized_pnl).toBe(4990);
+    expect(shortWin.return_basis).toBe(5000);
+    expect(shortWin.realized_pnl_percent).toBeCloseTo(99.8, 2);
+  });
+
+  it("summarizes realized PnL and ranks all-time winners and losers", () => {
+    const enriched = enrichRealizedPnl(realizedPnl);
+    const summary = realizedPnlSummary(enriched);
+
+    expect(summary.total_realized_pnl).toBe(5235);
+    expect(summary.winners).toBe(2);
+    expect(summary.losers).toBe(1);
+    expect(summary.win_rate).toBeCloseTo(66.667, 3);
+    expect(summary.average_winner).toBe(2642.5);
+    expect(summary.average_loser).toBe(-50);
+    expect(realizedPnlLeaders(enriched, "winners").map((entry) => entry.id)).toEqual(["short-win", "win-1"]);
+    expect(realizedPnlLeaders(enriched, "losers").map((entry) => entry.id)).toEqual(["loss-1"]);
   });
 });

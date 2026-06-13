@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import type { Position, ResearchDoc, SavedItem, WatchlistEntry } from "./types";
-import { loadPositions, loadThesis, loadWatchlist, parseWatchlistEntries } from "./data";
+import type { Position, RealizedPnlEntry, ResearchDoc, SavedItem, WatchlistEntry } from "./types";
+import { loadPositions, loadRealizedPnl, loadThesis, loadWatchlist, parseWatchlistEntries, realizedPnlSchema } from "./data";
 
 const savedItemSchema = z.object({
   id: z.string().min(1),
@@ -18,6 +18,16 @@ const savedItemSchema = z.object({
 function parseSavedItems(data: unknown): SavedItem[] {
   const parsed = z.array(savedItemSchema).safeParse(data);
   return parsed.success ? parsed.data : [];
+}
+
+function parseRealizedPnl(data: unknown): RealizedPnlEntry[] {
+  const parsed = z.array(realizedPnlSchema).safeParse(data);
+  return parsed.success
+    ? parsed.data.map((entry): RealizedPnlEntry => ({
+        ...entry,
+        side: entry.side ?? "long"
+      }))
+    : [];
 }
 
 export function getRedis() {
@@ -38,6 +48,18 @@ export async function getPositions(): Promise<Position[]> {
     return seed;
   }
   return loadPositions();
+}
+
+export async function getRealizedPnl(): Promise<RealizedPnlEntry[]> {
+  const redis = getRedis();
+  if (redis) {
+    const data = await redis.get("realized_pnl");
+    if (data) return parseRealizedPnl(data);
+    const seed = await loadRealizedPnl();
+    await redis.set("realized_pnl", seed);
+    return seed;
+  }
+  return loadRealizedPnl();
 }
 
 export async function getWatchlist(): Promise<WatchlistEntry[]> {
@@ -73,6 +95,15 @@ export async function setPositions(positions: Position[]): Promise<void> {
     return;
   }
   await fs.writeFile(path.join(process.cwd(), "data", "positions.json"), JSON.stringify(positions, null, 2));
+}
+
+export async function setRealizedPnl(entries: RealizedPnlEntry[]): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    await redis.set("realized_pnl", entries);
+    return;
+  }
+  await fs.writeFile(path.join(process.cwd(), "data", "realized_pnl.json"), JSON.stringify(entries, null, 2));
 }
 
 export async function setWatchlist(entries: WatchlistEntry[]): Promise<void> {

@@ -2,13 +2,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { POST as login } from "@/app/api/auth/login/route";
 import { signSession } from "@/lib/auth";
-import { middleware } from "@/middleware";
+import { config, middleware } from "@/middleware";
 
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
 describe("write middleware", () => {
+  it("matches realized PnL writes", () => {
+    expect(config.matcher).toContain("/api/realized-pnl/:path*");
+  });
+
   it("blocks write requests without a valid session", async () => {
     const response = await middleware(new NextRequest("https://app.test/api/watchlist", { method: "POST" }));
 

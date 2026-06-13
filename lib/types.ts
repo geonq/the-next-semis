@@ -12,6 +12,27 @@ export type Position = {
   coinGeckoId?: string;
 };
 
+export type RealizedPnlEntry = {
+  id: string;
+  ticker: string;
+  company: string;
+  assetClass?: "stock" | "crypto" | "perp";
+  side: "long" | "short";
+  quantity: number;
+  entry_price: number;
+  exit_price: number;
+  fees?: number;
+  leverage?: number;
+  margin_mode?: "isolated" | "shared";
+  margin_used?: number;
+  bitstamp_market?: string;
+  currency: string;
+  opened_at?: string;
+  closed_at: string;
+  sector?: string;
+  note?: string;
+};
+
 export type DiscoveryContext = {
   sectorName: string;
   scannedAt: number;
@@ -60,6 +81,23 @@ export type Quote = {
 
 export type QuotesByTicker = Record<string, Quote>;
 
+export type BitstampPerpQuote = {
+  market_symbol: string;
+  market: string | null;
+  last: number | null;
+  bid: number | null;
+  ask: number | null;
+  mark_price: number | null;
+  index_price: number | null;
+  open_interest: number | null;
+  open_interest_value: number | null;
+  funding_rate: number | null;
+  next_funding_time: number | null;
+  timestamp: number | null;
+};
+
+export type BitstampPerpQuotesByMarket = Record<string, BitstampPerpQuote>;
+
 export type EnrichedPosition = Position & {
   current_price?: number;
   total_value?: number;
@@ -74,6 +112,23 @@ export type PortfolioSummary = {
   total_value: number;
   day_change_dollars: number;
   day_change_percent: number;
+};
+
+export type RealizedPnlSummary = {
+  total_realized_pnl: number;
+  winners: number;
+  losers: number;
+  win_rate: number;
+  average_winner: number;
+  average_loser: number;
+};
+
+export type EnrichedRealizedPnlEntry = RealizedPnlEntry & {
+  cost_basis: number;
+  return_basis: number;
+  gross_pnl: number;
+  realized_pnl: number;
+  realized_pnl_percent: number;
 };
 
 export type EnrichedWatchlistEntry = WatchlistEntry & {

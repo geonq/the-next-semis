@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import type { Position, WatchlistEntry } from "./types";
+import type { Position, RealizedPnlEntry, WatchlistEntry } from "./types";
 
 const positionSchema = z.object({
   ticker: z.string().min(1).transform((value) => value.toUpperCase()),
@@ -15,6 +15,27 @@ const positionSchema = z.object({
   sector: z.string().min(1),
   thesis_id: z.string().optional(),
   coinGeckoId: z.string().optional()
+});
+
+export const realizedPnlSchema = z.object({
+  id: z.string().min(1),
+  ticker: z.string().min(1).max(30).transform((value) => value.toUpperCase()),
+  company: z.string().min(1).max(200),
+  assetClass: z.enum(["stock", "crypto", "perp"]).optional(),
+  side: z.enum(["long", "short"]).default("long"),
+  quantity: z.number().finite().positive(),
+  entry_price: z.number().finite().nonnegative(),
+  exit_price: z.number().finite().nonnegative(),
+  fees: z.number().finite().nonnegative().optional(),
+  leverage: z.number().finite().positive().optional(),
+  margin_mode: z.enum(["isolated", "shared"]).optional(),
+  margin_used: z.number().finite().positive().optional(),
+  bitstamp_market: z.string().regex(/^[a-z0-9-]{1,40}$/).optional(),
+  currency: z.string().min(1).max(10),
+  opened_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  closed_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  sector: z.string().max(100).optional(),
+  note: z.string().max(1000).optional()
 });
 
 export const watchlistSchema = z.object({
@@ -44,6 +65,14 @@ async function readJsonArray<T>(fileName: string, schema: z.ZodType<T>): Promise
 
 export async function loadPositions(): Promise<Position[]> {
   return readJsonArray("positions.json", positionSchema);
+}
+
+export async function loadRealizedPnl(): Promise<RealizedPnlEntry[]> {
+  const entries = await readJsonArray("realized_pnl.json", realizedPnlSchema);
+  return entries.map((entry): RealizedPnlEntry => ({
+    ...entry,
+    side: entry.side ?? "long"
+  }));
 }
 
 export async function loadWatchlist(): Promise<WatchlistEntry[]> {
