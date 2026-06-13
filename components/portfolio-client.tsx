@@ -53,6 +53,17 @@ export function PortfolioClient({
         </div>
       </section>
 
+      <div className="m-pos-list">
+        {enriched.map((position) => (
+          <MobilePositionRow
+            key={position.ticker}
+            position={position}
+            isAdmin={isAdmin}
+            onDelete={deletePosition}
+          />
+        ))}
+      </div>
+
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -107,6 +118,72 @@ export function PortfolioClient({
       <Concentration enriched={enriched} watchlist={watchlist} positions={positions} />
 
       {isAdmin ? <AddPositionForm onAdded={() => router.refresh()} /> : null}
+    </div>
+  );
+}
+
+function MobilePositionRow({
+  position,
+  isAdmin,
+  onDelete
+}: {
+  position: EnrichedPosition;
+  isAdmin: boolean;
+  onDelete: (ticker: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="m-pos-row">
+      <button className="m-pos-summary" onClick={() => setOpen((v) => !v)} type="button">
+        <span className="m-pos-ticker">{position.ticker}</span>
+        <span className="m-pos-amount tabular">{position.shares.toLocaleString("en-US")}</span>
+      </button>
+      <div className={`m-pos-detail${open ? " open" : ""}`}>
+        <div className="m-pos-detail-inner">
+          <div className="m-pos-stats">
+            <div className="m-pos-stat">
+              <span className="m-pos-stat-label">Avg Cost</span>
+              <span className="m-pos-stat-value tabular">{fmtUsd(position.average_cost)}</span>
+            </div>
+            <div className="m-pos-stat">
+              <span className="m-pos-stat-label">Current</span>
+              <span className="m-pos-stat-value tabular">{fmtUsd(position.current_price)}</span>
+            </div>
+            <div className="m-pos-stat">
+              <span className="m-pos-stat-label">Value</span>
+              <span className="m-pos-stat-value tabular">{fmtUsd(position.total_value)}</span>
+            </div>
+            <div className="m-pos-stat">
+              <span className="m-pos-stat-label">PnL $</span>
+              <span className={`m-pos-stat-value tabular ${signClass(position.pnl_dollars)}`}>
+                {fmtSignedUsd(position.pnl_dollars)}
+              </span>
+            </div>
+            <div className="m-pos-stat">
+              <span className="m-pos-stat-label">PnL %</span>
+              <span className={`m-pos-stat-value tabular ${signClass(position.pnl_percent)}`}>
+                {fmtSignedPct(position.pnl_percent)}
+              </span>
+            </div>
+            <div className="m-pos-stat">
+              <span className="m-pos-stat-label">Day</span>
+              <span className={`m-pos-stat-value tabular ${signClass(position.day_change_percent)}`}>
+                {fmtSignedPct(position.day_change_percent)}
+              </span>
+            </div>
+          </div>
+          {isAdmin ? (
+            <button
+              className="m-pos-delete"
+              onClick={() => onDelete(position.ticker)}
+              type="button"
+            >
+              Remove {position.ticker}
+            </button>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -198,6 +275,7 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
     shares: "",
     average_cost: "",
     currency: "USD",
+    entry_date: "",
     sector: ""
   });
 
@@ -215,12 +293,13 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
         shares: parseFloat(form.shares),
         average_cost: parseFloat(form.average_cost),
         currency: form.currency,
+        entry_date: form.entry_date || undefined,
         sector: form.sector
       })
     });
 
     if (res.ok) {
-      setForm({ ticker: "", company: "", assetClass: "stock", shares: "", average_cost: "", currency: "USD", sector: "" });
+      setForm({ ticker: "", company: "", assetClass: "stock", shares: "", average_cost: "", currency: "USD", entry_date: "", sector: "" });
       setOpen(false);
       onAdded();
     } else {
@@ -285,12 +364,22 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
           value={form.average_cost}
           onChange={(e) => setForm((f) => ({ ...f, average_cost: e.target.value }))}
         />
-        <input
-          className="add-input"
-          placeholder="Currency"
-          required
+        <select
+          className="add-input add-select"
           value={form.currency}
           onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
+        >
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+          <option value="JPY">JPY</option>
+        </select>
+        <input
+          className="add-input"
+          type="date"
+          title="Entry date"
+          value={form.entry_date}
+          onChange={(e) => setForm((f) => ({ ...f, entry_date: e.target.value }))}
         />
         <input
           className="add-input"
