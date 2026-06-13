@@ -2,22 +2,29 @@
 
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import { enrichPositions, movers, portfolioSummary } from "@/lib/portfolio";
-import type { Position, QuotesByTicker } from "@/lib/types";
+import type { BitstampPerpQuotesByMarket, EnrichedPosition, Position, QuotesByTicker } from "@/lib/types";
 import { useLiveQuotes } from "./use-live-quotes";
+import { useLivePerpQuotes } from "./use-live-perp-quotes";
 
 export function OverviewClient({
   positions,
   initialQuotes,
+  initialPerpQuotes,
   tickers,
   coingeckoParam
 }: {
   positions: Position[];
   initialQuotes: QuotesByTicker;
+  initialPerpQuotes: BitstampPerpQuotesByMarket;
   tickers: string[];
   coingeckoParam?: string;
 }) {
+  const perpMarkets = positions
+    .filter((p) => p.assetClass === "perp" && p.bitstamp_market)
+    .map((p) => p.bitstamp_market!);
   const quotes = useLiveQuotes(initialQuotes, tickers, coingeckoParam);
-  const enriched = enrichPositions(positions, quotes);
+  const perpQuotes = useLivePerpQuotes(initialPerpQuotes, perpMarkets);
+  const enriched = enrichPositions(positions, quotes, perpQuotes);
   const summary = portfolioSummary(enriched);
   const topGainers = movers(enriched, "desc");
   const topLosers = movers(enriched, "asc");
@@ -40,6 +47,15 @@ export function OverviewClient({
       </section>
 
       <section className="hairline">
+        <p className="section-label">Positions</p>
+        <div className="overview-pos-list">
+          {enriched.map((position) => (
+            <PositionRow key={position.ticker} position={position} />
+          ))}
+        </div>
+      </section>
+
+      <section className="hairline">
         <div className="two-col">
           <MoverColumn
             title="Top Gainers"
@@ -55,6 +71,28 @@ export function OverviewClient({
           />
         </div>
       </section>
+    </div>
+  );
+}
+
+function PositionRow({ position }: { position: EnrichedPosition }) {
+  const isPerp = position.assetClass === "perp";
+  const value = isPerp ? position.notional : position.total_value;
+  const pnl = position.pnl_percent;
+
+  return (
+    <div className="overview-pos-row">
+      <div className="row-left">
+        <span className="ticker">
+          {position.ticker}
+          {isPerp && position.side ? (
+            <span className={`perp-side-badge ${position.side}`}>{position.side === "long" ? "L" : "S"}</span>
+          ) : null}
+        </span>
+        <span className="subtle">{position.company}</span>
+      </div>
+      <span className="tabular">{value != null ? fmtUsd(value) : "—"}</span>
+      <span className={`tabular ${signClass(pnl)}`}>{pnl != null ? fmtSignedPct(pnl) : "—"}</span>
     </div>
   );
 }

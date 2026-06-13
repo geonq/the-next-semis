@@ -211,6 +211,24 @@ ol {
   justify-content: space-between;
 }
 
+.overview-pos-list {
+  display: grid;
+  gap: 0;
+}
+
+.overview-pos-row {
+  align-items: center;
+  border-bottom: 1px solid var(--color-grid);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr auto auto;
+  padding: 13px 0;
+}
+
+.overview-pos-row:last-child {
+  border-bottom: none;
+}
+
 .row-left {
   align-items: baseline;
   display: flex;
