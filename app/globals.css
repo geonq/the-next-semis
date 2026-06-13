@@ -1688,7 +1688,7 @@ ol {
   align-items: center;
   display: grid;
   gap: 10px;
-  grid-template-columns: 140px 1fr 36px;
+  grid-template-columns: 140px 1fr 64px;
 }
 
 .alloc-label {
@@ -1715,11 +1715,19 @@ ol {
   transition: width 300ms ease;
 }
 
+.alloc-bar-fill.alloc-bar-loss {
+  background: var(--color-loss);
+}
+
 .alloc-pct {
   color: color-mix(in srgb, var(--color-fg) 58%, var(--color-neutral));
   font-size: 12px;
   font-weight: 600;
   text-align: right;
+}
+
+.alloc-themes {
+  margin-top: 40px;
 }
 
 .buy-trigger {

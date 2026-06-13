@@ -211,7 +211,7 @@ export function PortfolioClient({
 
       <RealizedLeaders winners={biggestWinners} losers={biggestLosers} />
 
-      <Concentration enriched={enriched} watchlist={watchlist} positions={positions} />
+      <Concentration enriched={enriched} watchlist={watchlist} positions={positions} realizedEntries={realizedEntries} />
 
       {isAdmin && editingRealizedPnl ? (
         <EditRealizedPnlForm
@@ -609,11 +609,13 @@ function MobileRealizedPnlRow({
 function Concentration({
   enriched,
   watchlist,
-  positions
+  positions,
+  realizedEntries
 }: {
   enriched: EnrichedPosition[];
   watchlist: WatchlistEntry[];
   positions: Position[];
+  realizedEntries: EnrichedRealizedPnlEntry[];
 }) {
   const totalValue = enriched.reduce((sum, p) => sum + (p.total_value ?? 0), 0);
 
@@ -624,6 +626,14 @@ function Concentration({
   }, {});
   const sectors = Object.entries(bySector).sort((a, b) => b[1] - a[1]);
 
+  const realizedBySector = realizedEntries.reduce<Record<string, number>>((acc, e) => {
+    const sector = e.sector || "Other";
+    acc[sector] = (acc[sector] ?? 0) + e.realized_pnl;
+    return acc;
+  }, {});
+  const realizedSectors = Object.entries(realizedBySector).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const maxAbsRealized = realizedSectors.reduce((m, [, v]) => Math.max(m, Math.abs(v)), 0);
+
   const heldTickers = new Set(positions.map((p) => p.ticker));
   const themeMap = watchlist.reduce<Record<string, { total: number; held: number }>>((acc, e) => {
     if (!acc[e.theme]) acc[e.theme] = { total: 0, held: 0 };
@@ -633,14 +643,14 @@ function Concentration({
   }, {});
   const themes = Object.entries(themeMap).sort((a, b) => b[1].held - a[1].held || b[1].total - a[1].total);
 
-  if (sectors.length === 0 && themes.length === 0) return null;
+  if (sectors.length === 0 && realizedSectors.length === 0 && themes.length === 0) return null;
 
   return (
     <section className="hairline">
       <div className="two-col">
         {sectors.length > 0 && (
           <div>
-            <p className="section-label">Sector allocation</p>
+            <p className="section-label">Sector allocation — active</p>
             <div className="alloc-list">
               {sectors.map(([sector, value]) => {
                 const pct = totalValue > 0 ? (value / totalValue) * 100 : 0;
@@ -658,25 +668,45 @@ function Concentration({
           </div>
         )}
 
-        {themes.length > 0 && (
+        {realizedSectors.length > 0 && (
           <div>
-            <p className="section-label">Theme coverage</p>
+            <p className="section-label">Sector allocation — realized</p>
             <div className="alloc-list">
-              {themes.map(([theme, { total, held }]) => (
-                <div key={theme} className="alloc-row">
-                  <span className="alloc-label">{theme}</span>
-                  <div className="alloc-bar-track">
-                    <div className="alloc-bar-fill" style={{ width: `${(held / total) * 100}%` }} />
+              {realizedSectors.map(([sector, pnl]) => {
+                const barPct = maxAbsRealized > 0 ? (Math.abs(pnl) / maxAbsRealized) * 100 : 0;
+                return (
+                  <div key={sector} className="alloc-row">
+                    <span className="alloc-label">{sector}</span>
+                    <div className="alloc-bar-track">
+                      <div className={`alloc-bar-fill${pnl < 0 ? " alloc-bar-loss" : ""}`} style={{ width: `${barPct}%` }} />
+                    </div>
+                    <span className={`alloc-pct tabular ${signClass(pnl)}`}>{fmtSignedUsd(pnl)}</span>
                   </div>
-                  <span className={`alloc-pct tabular ${held === 0 ? "muted" : ""}`}>
-                    {held}/{total}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
       </div>
+
+      {themes.length > 0 && (
+        <div className="alloc-themes">
+          <p className="section-label">Theme coverage</p>
+          <div className="alloc-list">
+            {themes.map(([theme, { total, held }]) => (
+              <div key={theme} className="alloc-row">
+                <span className="alloc-label">{theme}</span>
+                <div className="alloc-bar-track">
+                  <div className="alloc-bar-fill" style={{ width: `${(held / total) * 100}%` }} />
+                </div>
+                <span className={`alloc-pct tabular ${held === 0 ? "muted" : ""}`}>
+                  {held}/{total}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
