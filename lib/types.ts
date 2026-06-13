@@ -4,6 +4,8 @@ export type Position = {
   assetClass?: "stock" | "crypto";
   shares: number;
   average_cost: number;
+  average_cost_usd?: number;
+  entry_date?: string;
   currency: string;
   sector: string;
   thesis_id?: string;
