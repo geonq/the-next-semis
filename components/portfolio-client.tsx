@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import { enrichPositions, portfolioSummary } from "@/lib/portfolio";
@@ -28,6 +28,7 @@ export function PortfolioClient({
   const quotes = useLiveQuotes(initialQuotes, tickers, coingeckoParam);
   const enriched = enrichPositions(positions, quotes).sort((a, b) => (b.total_value ?? 0) - (a.total_value ?? 0));
   const summary = portfolioSummary(enriched);
+  const [editingPosition, setEditingPosition] = useState<Position | null>(null);
 
   async function deletePosition(ticker: string) {
     await fetch("/api/positions", {
@@ -62,6 +63,7 @@ export function PortfolioClient({
             position={position}
             isAdmin={isAdmin}
             onDelete={deletePosition}
+            onEdit={(ticker) => setEditingPosition(positions.find((p) => p.ticker === ticker) ?? null)}
           />
         ))}
       </div>
@@ -100,7 +102,14 @@ export function PortfolioClient({
                   {fmtSignedPct(position.day_change_percent)}
                 </td>
                 {isAdmin ? (
-                  <td>
+                  <td className="position-actions">
+                    <button
+                      className="edit-btn"
+                      onClick={() => setEditingPosition(positions.find((p) => p.ticker === position.ticker) ?? null)}
+                      type="button"
+                    >
+                      Edit
+                    </button>
                     <button
                       className="delete-btn"
                       onClick={() => deletePosition(position.ticker)}
@@ -119,6 +128,17 @@ export function PortfolioClient({
 
       <Concentration enriched={enriched} watchlist={watchlist} positions={positions} />
 
+      {isAdmin && editingPosition ? (
+        <EditPositionForm
+          position={editingPosition}
+          onCancel={() => setEditingPosition(null)}
+          onSaved={() => {
+            setEditingPosition(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+
       {isAdmin ? <AddPositionForm onAdded={() => router.refresh()} /> : null}
     </div>
   );
@@ -127,11 +147,13 @@ export function PortfolioClient({
 function MobilePositionRow({
   position,
   isAdmin,
-  onDelete
+  onDelete,
+  onEdit
 }: {
   position: EnrichedPosition;
   isAdmin: boolean;
   onDelete: (ticker: string) => void;
+  onEdit: (ticker: string) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -176,13 +198,22 @@ function MobilePositionRow({
             </div>
           </div>
           {isAdmin ? (
-            <button
-              className="m-pos-delete"
-              onClick={() => onDelete(position.ticker)}
-              type="button"
-            >
-              Remove {position.ticker}
-            </button>
+            <div className="m-pos-actions">
+              <button
+                className="m-pos-edit"
+                onClick={() => onEdit(position.ticker)}
+                type="button"
+              >
+                Edit {position.ticker}
+              </button>
+              <button
+                className="m-pos-delete"
+                onClick={() => onDelete(position.ticker)}
+                type="button"
+              >
+                Remove {position.ticker}
+              </button>
+            </div>
           ) : null}
         </div>
       </div>
@@ -266,21 +297,62 @@ function Concentration({
 }
 
 type AssetClass = "stock" | "crypto";
+type PositionFormState = {
+  ticker: string;
+  company: string;
+  assetClass: AssetClass;
+  coinGeckoId: string;
+  shares: string;
+  average_cost: string;
+  currency: string;
+  entry_date: string;
+  sector: string;
+};
+
+const emptyPositionForm: PositionFormState = {
+  ticker: "",
+  company: "",
+  assetClass: "stock",
+  coinGeckoId: "",
+  shares: "",
+  average_cost: "",
+  currency: "USD",
+  entry_date: "",
+  sector: ""
+};
+
+function formFromPosition(position: Position): PositionFormState {
+  return {
+    ticker: position.ticker,
+    company: position.company,
+    assetClass: position.assetClass === "crypto" ? "crypto" : "stock",
+    coinGeckoId: position.coinGeckoId ?? "",
+    shares: String(position.shares),
+    average_cost: String(position.average_cost_usd ?? position.average_cost),
+    currency: position.average_cost_usd != null ? "USD" : position.currency,
+    entry_date: position.entry_date ?? "",
+    sector: position.sector
+  };
+}
+
+function positionPayload(form: PositionFormState) {
+  return {
+    ticker: form.ticker,
+    company: form.company,
+    assetClass: form.assetClass,
+    coinGeckoId: form.coinGeckoId || undefined,
+    shares: parseFloat(form.shares),
+    average_cost: parseFloat(form.average_cost),
+    currency: form.currency,
+    entry_date: form.entry_date || undefined,
+    sector: form.sector
+  };
+}
 
 function AddPositionForm({ onAdded }: { onAdded: () => void }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({
-    ticker: "",
-    company: "",
-    assetClass: "stock" as AssetClass,
-    coinGeckoId: "",
-    shares: "",
-    average_cost: "",
-    currency: "USD",
-    entry_date: "",
-    sector: ""
-  });
+  const [form, setForm] = useState<PositionFormState>(emptyPositionForm);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -289,21 +361,11 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
     const res = await fetch("/api/positions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ticker: form.ticker,
-        company: form.company,
-        assetClass: form.assetClass,
-        coinGeckoId: form.coinGeckoId || undefined,
-        shares: parseFloat(form.shares),
-        average_cost: parseFloat(form.average_cost),
-        currency: form.currency,
-        entry_date: form.entry_date || undefined,
-        sector: form.sector
-      })
+      body: JSON.stringify(positionPayload(form))
     });
 
     if (res.ok) {
-      setForm({ ticker: "", company: "", assetClass: "stock", coinGeckoId: "", shares: "", average_cost: "", currency: "USD", entry_date: "", sector: "" });
+      setForm(emptyPositionForm);
       setOpen(false);
       onAdded();
     } else {
@@ -315,104 +377,161 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
   if (!open) {
     return (
       <button className="add-btn" onClick={() => setOpen(true)} type="button">
-        + Add position
+        + Add / increase position
       </button>
     );
   }
 
   return (
     <form className="add-form" onSubmit={handleSubmit}>
-      <p className="section-label">New position</p>
-      <div className="add-fields">
-        <SegmentedTabs
-          options={["Stock", "Crypto"]}
-          value={form.assetClass === "crypto" ? "Crypto" : "Stock"}
-          onChange={(value) =>
-            setForm((f) => ({
-              ...f,
-              ticker: "",
-              company: "",
-              assetClass: value === "Crypto" ? "crypto" : "stock"
-            }))
-          }
-        />
-        <TickerAutocomplete
-          ticker={form.ticker}
-          company={form.company}
-          assetClass={form.assetClass}
-          onSelect={(ticker, company, _assetType, coinGeckoId) =>
-            setForm((f) => ({ ...f, ticker, company: company ?? f.company, coinGeckoId: coinGeckoId ?? f.coinGeckoId }))
-          }
-          required
-        />
-        <input
-          className="add-input"
-          placeholder="Company"
-          required
-          value={form.company}
-          onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
-        />
-        <input
-          className="add-input"
-          placeholder={form.assetClass === "crypto" ? "Coins" : "Shares"}
-          required
-          type="number"
-          step="any"
-          value={form.shares}
-          onChange={(e) => setForm((f) => ({ ...f, shares: e.target.value }))}
-        />
-        <input
-          className="add-input"
-          placeholder="Avg cost"
-          required
-          type="number"
-          step="any"
-          value={form.average_cost}
-          onChange={(e) => setForm((f) => ({ ...f, average_cost: e.target.value }))}
-        />
-        <select
-          className="add-input add-select"
-          value={form.currency}
-          onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-        >
-          <option value="USD">USD</option>
-          <option value="EUR">EUR</option>
-          <option value="GBP">GBP</option>
-          <option value="JPY">JPY</option>
-        </select>
-        <input
-          className="add-input"
-          type="date"
-          title="Entry date"
-          value={form.entry_date}
-          onChange={(e) => setForm((f) => ({ ...f, entry_date: e.target.value }))}
-        />
-        <input
-          className="add-input"
-          placeholder="Sector"
-          required
-          list="position-sectors"
-          value={form.sector}
-          onChange={(e) => setForm((f) => ({ ...f, sector: e.target.value }))}
-        />
-        <datalist id="position-sectors">
-          <option value="Semiconductors" />
-          <option value="Technology" />
-          <option value="Energy" />
-          <option value="Industrials" />
-          <option value="Healthcare" />
-          <option value="Materials" />
-          <option value="Financials" />
-          <option value="Consumer" />
-          <option value="Communication" />
-          <option value="Utilities" />
-        </datalist>
-      </div>
+      <p className="section-label">New lot</p>
+      <PositionFormFields form={form} setForm={setForm} />
       {error ? <p className="loss">{error}</p> : null}
       <div className="add-actions">
         <button className="add-btn" type="submit">Add</button>
         <button className="cancel-btn" onClick={() => setOpen(false)} type="button">Cancel</button>
       </div>
     </form>
+  );
+}
+
+function EditPositionForm({
+  position,
+  onSaved,
+  onCancel
+}: {
+  position: Position;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [error, setError] = useState("");
+  const [form, setForm] = useState<PositionFormState>(() => formFromPosition(position));
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    const res = await fetch("/api/positions", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ originalTicker: position.ticker, ...positionPayload(form) })
+    });
+
+    if (res.ok) {
+      onSaved();
+    } else {
+      const data = await res.json();
+      setError(data.error ?? "Failed to update position.");
+    }
+  }
+
+  return (
+    <form className="add-form" onSubmit={handleSubmit}>
+      <p className="section-label">Edit position</p>
+      <PositionFormFields form={form} setForm={setForm} />
+      {error ? <p className="loss">{error}</p> : null}
+      <div className="add-actions">
+        <button className="add-btn" type="submit">Save</button>
+        <button className="cancel-btn" onClick={onCancel} type="button">Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function PositionFormFields({
+  form,
+  setForm
+}: {
+  form: PositionFormState;
+  setForm: Dispatch<SetStateAction<PositionFormState>>;
+}) {
+  return (
+    <div className="add-fields">
+      <SegmentedTabs
+        options={["Stock", "Crypto"]}
+        value={form.assetClass === "crypto" ? "Crypto" : "Stock"}
+        onChange={(value) =>
+          setForm((f) => ({
+            ...f,
+            ticker: "",
+            company: "",
+            coinGeckoId: "",
+            assetClass: value === "Crypto" ? "crypto" : "stock"
+          }))
+        }
+      />
+      <TickerAutocomplete
+        ticker={form.ticker}
+        company={form.company}
+        assetClass={form.assetClass}
+        onSelect={(ticker, company, _assetType, coinGeckoId) =>
+          setForm((f) => ({ ...f, ticker, company: company ?? f.company, coinGeckoId: coinGeckoId ?? f.coinGeckoId }))
+        }
+        required
+      />
+      <input
+        className="add-input"
+        placeholder="Company"
+        required
+        value={form.company}
+        onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
+      />
+      <input
+        className="add-input"
+        placeholder={form.assetClass === "crypto" ? "Coins" : "Shares"}
+        required
+        type="number"
+        step="any"
+        value={form.shares}
+        onChange={(e) => setForm((f) => ({ ...f, shares: e.target.value }))}
+      />
+      <input
+        className="add-input"
+        placeholder="Avg cost"
+        required
+        type="number"
+        step="any"
+        value={form.average_cost}
+        onChange={(e) => setForm((f) => ({ ...f, average_cost: e.target.value }))}
+      />
+      <select
+        className="add-input add-select"
+        value={form.currency}
+        onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
+      >
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="GBP">GBP</option>
+        <option value="JPY">JPY</option>
+      </select>
+      <input
+        className="add-input"
+        type="date"
+        title="Entry date"
+        value={form.entry_date}
+        onChange={(e) => setForm((f) => ({ ...f, entry_date: e.target.value }))}
+      />
+      <input
+        className="add-input"
+        placeholder="Sector"
+        required
+        list="position-sectors"
+        value={form.sector}
+        onChange={(e) => setForm((f) => ({ ...f, sector: e.target.value }))}
+      />
+      <datalist id="position-sectors">
+        <option value="Semiconductors" />
+        <option value="Technology" />
+        <option value="Energy" />
+        <option value="Industrials" />
+        <option value="Healthcare" />
+        <option value="Materials" />
+        <option value="Financials" />
+        <option value="Consumer" />
+        <option value="Communication" />
+        <option value="Utilities" />
+        <option value="Crypto" />
+      </datalist>
+    </div>
   );
 }

@@ -38,9 +38,8 @@ describe("public API route caps", () => {
   it("includes crypto suggestions in ticker search", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       Response.json({
-        quotes: [
-          { symbol: "BTC-USD", shortname: "Bitcoin USD", quoteType: "CRYPTOCURRENCY" },
-          { symbol: "NVDA", shortname: "NVIDIA Corporation", quoteType: "EQUITY", exchDisp: "Nasdaq" }
+        coins: [
+          { id: "bitcoin", name: "Bitcoin", symbol: "btc", market_cap_rank: 1 }
         ]
       })
     );
@@ -48,7 +47,7 @@ describe("public API route caps", () => {
     const response = await search(new Request("https://app.test/api/search?q=btc&assetClass=crypto"));
 
     await expect(response.json()).resolves.toEqual([
-      { ticker: "BTC-USD", company: "Bitcoin USD", exchange: "Crypto", assetType: "crypto" }
+      { ticker: "BTC", company: "Bitcoin", exchange: "Crypto", assetType: "crypto", coinGeckoId: "bitcoin" }
     ]);
   });
 

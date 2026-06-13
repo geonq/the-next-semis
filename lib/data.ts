@@ -6,11 +6,15 @@ import type { Position, WatchlistEntry } from "./types";
 const positionSchema = z.object({
   ticker: z.string().min(1).transform((value) => value.toUpperCase()),
   company: z.string().min(1),
+  assetClass: z.enum(["stock", "crypto"]).optional(),
   shares: z.number(),
   average_cost: z.number(),
+  average_cost_usd: z.number().optional(),
+  entry_date: z.string().optional(),
   currency: z.string().min(1),
   sector: z.string().min(1),
-  thesis_id: z.string().optional()
+  thesis_id: z.string().optional(),
+  coinGeckoId: z.string().optional()
 });
 
 export const watchlistSchema = z.object({

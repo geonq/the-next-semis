@@ -27,7 +27,9 @@ html[data-theme="light"] {
 html,
 body {
   margin: 0;
+  max-width: 100%;
   min-height: 100%;
+  overflow-x: clip;
   background: var(--color-bg);
   color: var(--color-fg);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -127,6 +129,7 @@ ol {
   margin: 0 auto;
   max-width: 1280px;
   padding: 56px 24px 96px;
+  width: 100%;
 }
 
 .stack-xl {
@@ -273,6 +276,13 @@ ol {
   display: inline-flex;
   gap: 9px;
   min-width: 0;
+}
+
+.position-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 /* .filter-bar / .filter-group removed — replaced by .filter-wrap dropdown */
@@ -448,6 +458,7 @@ ol {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
 }
 
 .research-card {
@@ -457,6 +468,7 @@ ol {
   flex: 1;
   flex-direction: column;
   min-height: 188px;
+  min-width: 0;
   padding: 24px 22px;
   transition:
     background 150ms ease,
@@ -474,6 +486,11 @@ ol {
   gap: 16px;
   justify-content: space-between;
   margin-bottom: 14px;
+  min-width: 0;
+}
+
+.card-top > div:first-child {
+  min-width: 0;
 }
 
 .brand-ticker {
@@ -485,6 +502,7 @@ ol {
   display: block;
   font-weight: 700;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .card-price {
@@ -1284,6 +1302,7 @@ ol {
 
 .research-card-wrap {
   display: flex;
+  min-width: 0;
   position: relative;
 }
 
@@ -1657,6 +1676,35 @@ ol {
   color: var(--color-loss);
 }
 
+.m-pos-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 16px;
+}
+
+.m-pos-actions .m-pos-delete,
+.m-pos-actions .m-pos-edit {
+  margin-bottom: 0;
+}
+
+.m-pos-edit {
+  background: transparent;
+  border: 1px solid var(--color-grid);
+  border-radius: 3px;
+  color: color-mix(in srgb, var(--color-fg) 56%, var(--color-neutral));
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  padding: 5px 10px;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.m-pos-edit:hover {
+  border-color: var(--color-neutral);
+  color: var(--color-fg);
+}
+
 @media (max-width: 760px) {
   .app-header-inner,
   .shell {
@@ -1726,11 +1774,23 @@ ol {
   .reading-toolbar {
     align-items: flex-start;
     flex-direction: column;
+    min-width: 0;
+    width: 100%;
   }
 
   .research-toolbar .segmented,
   .reading-toolbar .segmented {
+    min-width: 0;
     width: 100%;
+  }
+
+  .research-toolbar .filter-wrap,
+  .research-toolbar .filter-btn {
+    width: 100%;
+  }
+
+  .research-toolbar .filter-btn {
+    justify-content: center;
   }
 
   .reading-toolbar .reading-theme-filter {
@@ -1762,6 +1822,20 @@ ol {
   .research-card {
     min-height: 0;
     padding: 18px 16px;
+    width: 100%;
+  }
+
+  .card-top {
+    display: grid;
+    gap: 10px;
+  }
+
+  .card-price {
+    text-align: left;
+  }
+
+  .conditions {
+    font-size: 12px;
   }
 
   .reading-header {

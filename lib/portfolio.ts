@@ -1,5 +1,16 @@
 import type { EnrichedPosition, PortfolioSummary, Position, QuotesByTicker } from "./types";
 
+export function weightedAverageCost(
+  existingShares: number,
+  existingAverageCost: number,
+  addedShares: number,
+  addedAverageCost: number
+): number {
+  const totalShares = existingShares + addedShares;
+  if (totalShares <= 0) return 0;
+  return ((existingShares * existingAverageCost) + (addedShares * addedAverageCost)) / totalShares;
+}
+
 export function enrichPositions(positions: Position[], quotes: QuotesByTicker): EnrichedPosition[] {
   return positions.map((position) => {
     const quote = quotes[position.ticker];

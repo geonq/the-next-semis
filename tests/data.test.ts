@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { trackedTickers } from "@/lib/data";
+import { formatCoingeckoParam, trackedCryptoIds, trackedTickers } from "@/lib/data";
 
 describe("data helpers", () => {
   it("deduplicates and sorts tracked tickers across positions and watchlist", () => {
@@ -12,5 +12,21 @@ describe("data helpers", () => {
         ]
       )
     ).toEqual(["ASML", "NVDA"]);
+  });
+
+  it("tracks crypto ids separately for CoinGecko quotes", () => {
+    const cryptoIds = trackedCryptoIds(
+      [{ ticker: "HYPE", company: "Hyperliquid", assetClass: "crypto", shares: 6, average_cost: 7.5, currency: "USD", sector: "Crypto", coinGeckoId: "hyperliquid" }],
+      [
+        { ticker: "BTC", company: "Bitcoin", assetType: "crypto", theme: "Crypto", conditions: [], conviction: "draft", status: "watching", brandColor: null, coinGeckoId: "bitcoin" },
+        { ticker: "HYPE", company: "Hyperliquid", assetType: "crypto", theme: "Crypto", conditions: [], conviction: "draft", status: "watching", brandColor: null, coinGeckoId: "hyperliquid" }
+      ]
+    );
+
+    expect(cryptoIds).toEqual([
+      { id: "hyperliquid", symbol: "HYPE" },
+      { id: "bitcoin", symbol: "BTC" }
+    ]);
+    expect(formatCoingeckoParam(cryptoIds)).toBe("hyperliquid:HYPE,bitcoin:BTC");
   });
 });

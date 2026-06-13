@@ -114,9 +114,11 @@ describe("market data helpers", () => {
   });
 
   it("estimates missing market cap from quote summary shares outstanding", async () => {
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        Response.json({
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "https://finance.yahoo.com/") return new Response("");
+      if (url.includes("/v7/finance/quote")) {
+        return Response.json({
           quoteResponse: {
             result: [
               {
@@ -131,10 +133,10 @@ describe("market data helpers", () => {
               }
             ]
           }
-        })
-      )
-      .mockResolvedValueOnce(
-        Response.json({
+        });
+      }
+      if (url.includes("/v10/finance/quoteSummary/TEST")) {
+        return Response.json({
           quoteSummary: {
             result: [
               {
@@ -147,8 +149,10 @@ describe("market data helpers", () => {
               }
             ]
           }
-        })
-      );
+        });
+      }
+      return Response.json({ chart: { result: [] } });
+    });
 
     await expect(fetchQuoteDetails(["TEST"])).resolves.toMatchObject({
       TEST: {

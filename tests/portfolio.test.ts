@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enrichPositions, movers, portfolioSummary } from "@/lib/portfolio";
+import { enrichPositions, movers, portfolioSummary, weightedAverageCost } from "@/lib/portfolio";
 import type { Position, QuotesByTicker } from "@/lib/types";
 
 const positions: Position[] = [
@@ -36,6 +36,30 @@ describe("portfolio calculations", () => {
     expect(nvda.pnl_percent).toBe(35);
     expect(amd.pnl_dollars).toBe(-100);
     expect(missing.quote_status).toBe("no_data");
+  });
+
+  it("uses USD average cost when present", () => {
+    const [position] = enrichPositions(
+      [{ ticker: "HYPE", company: "Hyperliquid", assetClass: "crypto", shares: 6, average_cost: 7, average_cost_usd: 7.5, currency: "USD", sector: "Crypto", coinGeckoId: "hyperliquid" }],
+      {
+        HYPE: {
+          ticker: "HYPE",
+          price: 10,
+          currency: "USD",
+          regular_market_change: 1,
+          regular_market_change_percent: 11.11,
+          timestamp: 1
+        }
+      }
+    );
+
+    expect(position.pnl_dollars).toBe(15);
+    expect(position.pnl_percent).toBeCloseTo(33.333, 3);
+  });
+
+  it("calculates weighted average cost when adding to a position", () => {
+    expect(weightedAverageCost(3, 5, 3, 10)).toBe(7.5);
+    expect(weightedAverageCost(3, 5, 3, 5)).toBe(5);
   });
 
   it("summarizes only positions with quote data", () => {

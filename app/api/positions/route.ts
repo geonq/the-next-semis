@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getPositions, setPositions } from "@/lib/kv";
+import { weightedAverageCost } from "@/lib/portfolio";
 
 const SUPPORTED_CURRENCIES = ["USD", "EUR", "GBP", "JPY"] as const;
 
@@ -8,13 +9,18 @@ const addSchema = z.object({
   ticker: z.string().min(1).max(20).transform((v) => v.toUpperCase()),
   company: z.string().min(1).max(200),
   assetClass: z.enum(["stock", "crypto"]).optional(),
-  shares: z.number().finite(),
-  average_cost: z.number().finite(),
+  shares: z.number().finite().positive(),
+  average_cost: z.number().finite().nonnegative(),
   currency: z.enum(SUPPORTED_CURRENCIES),
   entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   sector: z.string().min(1).max(100),
   thesis_id: z.string().max(100).optional(),
   coinGeckoId: z.string().max(100).optional()
+});
+
+const updateSchema = addSchema.extend({
+  originalTicker: z.string().min(1).max(20).transform((v) => v.toUpperCase()),
+  shares: z.number().finite().nonnegative()
 });
 
 async function fetchUsdRate(from: string, date?: string): Promise<number | null> {
@@ -32,24 +38,75 @@ async function fetchUsdRate(from: string, date?: string): Promise<number | null>
   }
 }
 
+async function averageCostUsd(position: { average_cost: number; average_cost_usd?: number; currency: string; entry_date?: string }) {
+  if (position.average_cost_usd != null) return position.average_cost_usd;
+  const rate = await fetchUsdRate(position.currency, position.entry_date);
+  return rate != null ? position.average_cost * rate : position.average_cost;
+}
+
+async function submittedCostUsd(position: z.infer<typeof addSchema> | z.infer<typeof updateSchema>) {
+  if (position.currency === "USD") return position.average_cost;
+  const rate = await fetchUsdRate(position.currency, position.entry_date);
+  return rate != null ? position.average_cost * rate : undefined;
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const parsed = addSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
   const positions = await getPositions();
-  const exists = positions.some((p) => p.ticker === parsed.data.ticker);
-  if (exists) return NextResponse.json({ error: "Ticker already exists" }, { status: 409 });
+  const existing = positions.find((p) => p.ticker === parsed.data.ticker);
 
-  let average_cost_usd: number | undefined;
-  if (parsed.data.currency === "USD") {
-    average_cost_usd = parsed.data.average_cost;
-  } else {
-    const rate = await fetchUsdRate(parsed.data.currency, parsed.data.entry_date);
-    if (rate != null) average_cost_usd = parsed.data.average_cost * rate;
+  const average_cost_usd = await submittedCostUsd(parsed.data);
+  if (existing) {
+    const oldCostUsd = await averageCostUsd(existing);
+    const newCostUsd = average_cost_usd ?? parsed.data.average_cost;
+    const totalShares = existing.shares + parsed.data.shares;
+    const weightedAverageUsd = weightedAverageCost(existing.shares, oldCostUsd, parsed.data.shares, newCostUsd);
+    const next = positions.map((position) =>
+      position.ticker === parsed.data.ticker
+        ? {
+            ...position,
+            ...parsed.data,
+            company: parsed.data.company || position.company,
+            shares: totalShares,
+            average_cost: weightedAverageUsd,
+            average_cost_usd: weightedAverageUsd,
+            currency: "USD",
+            assetClass: parsed.data.assetClass ?? position.assetClass,
+            coinGeckoId: parsed.data.coinGeckoId ?? position.coinGeckoId,
+            sector: parsed.data.sector || position.sector
+          }
+        : position
+    );
+    await setPositions(next);
+    return NextResponse.json({ ok: true, merged: true });
   }
 
   await setPositions([...positions, { ...parsed.data, average_cost_usd }]);
+  return NextResponse.json({ ok: true });
+}
+
+export async function PUT(request: Request) {
+  const body = await request.json();
+  const parsed = updateSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+
+  const positions = await getPositions();
+  const exists = positions.some((p) => p.ticker === parsed.data.originalTicker);
+  if (!exists) return NextResponse.json({ error: "Position not found" }, { status: 404 });
+
+  const tickerTaken = positions.some((p) => p.ticker === parsed.data.ticker && p.ticker !== parsed.data.originalTicker);
+  if (tickerTaken) return NextResponse.json({ error: "Ticker already exists" }, { status: 409 });
+
+  const average_cost_usd = await submittedCostUsd(parsed.data);
+  const { originalTicker, ...position } = parsed.data;
+  await setPositions(
+    positions.map((existing) =>
+      existing.ticker === originalTicker ? { ...position, average_cost_usd } : existing
+    )
+  );
   return NextResponse.json({ ok: true });
 }
 

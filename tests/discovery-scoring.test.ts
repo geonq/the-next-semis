@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { groupResolvedCandidates, scoreDiscoveryResult, scoreEvidence } from "@/lib/discovery-scoring";
 import type { ResolvedArticleCandidate } from "@/lib/discovery-sources";
 import type { Candle } from "@/lib/types";
@@ -13,6 +13,15 @@ const candles: Candle[] = [
 ];
 
 describe("discovery scoring", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(12 * 86400 * 1000));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("scores catalyst evidence and risk evidence separately", () => {
     const evidence = scoreEvidence({
       title: "AeroVironment wins contract for low cost counter-drone defense production",

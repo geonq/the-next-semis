@@ -8,13 +8,15 @@ import { useLiveQuotes } from "./use-live-quotes";
 export function OverviewClient({
   positions,
   initialQuotes,
-  tickers
+  tickers,
+  coingeckoParam
 }: {
   positions: Position[];
   initialQuotes: QuotesByTicker;
   tickers: string[];
+  coingeckoParam?: string;
 }) {
-  const quotes = useLiveQuotes(initialQuotes, tickers);
+  const quotes = useLiveQuotes(initialQuotes, tickers, coingeckoParam);
   const enriched = enrichPositions(positions, quotes);
   const summary = portfolioSummary(enriched);
   const topGainers = movers(enriched, "desc");
