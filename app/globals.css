@@ -276,6 +276,10 @@ ol {
   transition: background 150ms ease;
 }
 
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .table tbody tr:hover {
   background: color-mix(in srgb, var(--color-fg) 2.5%, transparent);
 }
