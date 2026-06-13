@@ -2,7 +2,7 @@
 
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import { enrichPositions, movers, portfolioSummary } from "@/lib/portfolio";
-import type { BitstampPerpQuotesByMarket, EnrichedPosition, Position, QuotesByTicker } from "@/lib/types";
+import type { BitstampPerpQuotesByMarket, Position, QuotesByTicker } from "@/lib/types";
 import { useLiveQuotes } from "./use-live-quotes";
 import { useLivePerpQuotes } from "./use-live-perp-quotes";
 
@@ -47,15 +47,6 @@ export function OverviewClient({
       </section>
 
       <section className="hairline">
-        <p className="section-label">Positions</p>
-        <div className="overview-pos-list">
-          {enriched.map((position) => (
-            <PositionRow key={position.ticker} position={position} />
-          ))}
-        </div>
-      </section>
-
-      <section className="hairline">
         <div className="two-col">
           <MoverColumn
             title="Top Gainers"
@@ -71,28 +62,6 @@ export function OverviewClient({
           />
         </div>
       </section>
-    </div>
-  );
-}
-
-function PositionRow({ position }: { position: EnrichedPosition }) {
-  const isPerp = position.assetClass === "perp";
-  const value = isPerp ? position.notional : position.total_value;
-  const pnl = position.pnl_percent;
-
-  return (
-    <div className="overview-pos-row">
-      <div className="row-left">
-        <span className="ticker">
-          {position.ticker}
-          {isPerp && position.side ? (
-            <span className={`perp-side-badge ${position.side}`}>{position.side === "long" ? "L" : "S"}</span>
-          ) : null}
-        </span>
-        <span className="subtle">{position.company}</span>
-      </div>
-      <span className="tabular">{value != null ? fmtUsd(value) : "—"}</span>
-      <span className={`tabular ${signClass(pnl)}`}>{pnl != null ? fmtSignedPct(pnl) : "—"}</span>
     </div>
   );
 }
@@ -115,10 +84,17 @@ function MoverColumn({
         {positions.map((position) => (
           <div className="row" key={position.ticker}>
             <div className="row-left">
-              <span className="ticker">{position.ticker}</span>
+              <span className="ticker">
+                {position.ticker}
+                {position.assetClass === "perp" && position.side ? (
+                  <span className={`perp-side-badge ${position.side}`}>{position.side === "long" ? "L" : "S"}</span>
+                ) : null}
+              </span>
               <span className="subtle">{position.company}</span>
             </div>
-            <span className={`tabular ${polarity}`}>{fmtSignedPct(position.day_change_percent)}</span>
+            <span className={`tabular ${polarity}`}>
+              {fmtSignedPct(position.day_change_percent ?? position.pnl_percent)}
+            </span>
           </div>
         ))}
         {positions.length === 0 ? <p className="muted">{emptyText}</p> : null}

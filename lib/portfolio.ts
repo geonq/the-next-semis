@@ -94,12 +94,13 @@ export function portfolioSummary(positions: EnrichedPosition[]): PortfolioSummar
 export function movers(positions: EnrichedPosition[], direction: "asc" | "desc"): EnrichedPosition[] {
   return positions
     .filter((position) => {
-      if (typeof position.day_change_percent !== "number") return false;
-      return direction === "asc" ? position.day_change_percent < 0 : position.day_change_percent > 0;
+      const pct = position.assetClass === "perp" ? position.pnl_percent : position.day_change_percent;
+      if (typeof pct !== "number") return false;
+      return direction === "asc" ? pct < 0 : pct > 0;
     })
     .sort((a, b) => {
-      const left = a.day_change_percent ?? 0;
-      const right = b.day_change_percent ?? 0;
+      const left = (a.assetClass === "perp" ? a.pnl_percent : a.day_change_percent) ?? 0;
+      const right = (b.assetClass === "perp" ? b.pnl_percent : b.day_change_percent) ?? 0;
       return direction === "asc" ? left - right : right - left;
     })
     .slice(0, 3);
