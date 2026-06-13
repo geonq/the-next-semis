@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { signSession } from "@/lib/auth";
 import { checkLoginRateLimit, clearLoginFailures, registerLoginFailure } from "@/lib/rate-limit";
 
@@ -19,6 +20,11 @@ function clientIp(request: Request): string {
   return forwarded?.split(",")[0]?.trim() || "unknown";
 }
 
+const loginSchema = z.object({
+  username: z.string().min(1).max(200),
+  password: z.string().min(1).max(500)
+}).strict();
+
 export async function POST(request: Request) {
   const ip = clientIp(request);
 
@@ -30,7 +36,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const { username, password } = await request.json();
+  const body = await request.json().catch(() => null);
+  const parsed = loginSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
+
+  const { username, password } = parsed.data;
   const expectedUser = process.env.ADMIN_USERNAME;
   const expectedPass = process.env.ADMIN_PASSWORD;
 
@@ -54,6 +66,7 @@ export async function POST(request: Request) {
 
   response.cookies.set("session", token, {
     httpOnly: true,
+    path: "/",
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 7
@@ -61,6 +74,7 @@ export async function POST(request: Request) {
 
   response.cookies.set("is_admin", "1", {
     httpOnly: false,
+    path: "/",
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 7

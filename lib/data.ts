@@ -3,7 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import type { Position, RealizedPnlEntry, WatchlistEntry } from "./types";
 
-const positionSchema = z.object({
+export const positionSchema = z.object({
   ticker: z.string().min(1).transform((value) => value.toUpperCase()),
   company: z.string().min(1),
   assetClass: z.enum(["stock", "crypto", "perp"]).optional(),
@@ -70,6 +70,11 @@ async function readJsonArray<T>(fileName: string, schema: z.ZodType<T>): Promise
 
 export async function loadPositions(): Promise<Position[]> {
   return readJsonArray("positions.json", positionSchema);
+}
+
+export function parsePositionEntries(data: unknown): Position[] {
+  const parsed = z.array(positionSchema).safeParse(data);
+  return parsed.success ? parsed.data : [];
 }
 
 export async function loadRealizedPnl(): Promise<RealizedPnlEntry[]> {

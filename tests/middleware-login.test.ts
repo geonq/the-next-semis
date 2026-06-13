@@ -27,6 +27,18 @@ describe("write middleware", () => {
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
   });
 
+  it("blocks cross-origin write requests before session validation", async () => {
+    const response = await middleware(
+      new NextRequest("https://app.test/api/watchlist", {
+        method: "POST",
+        headers: { origin: "https://evil.test" }
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Forbidden" });
+  });
+
   it("allows write requests with a valid session and all read requests", async () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("JWT_SECRET", "unit-test-secret");
@@ -59,6 +71,21 @@ describe("login route", () => {
     );
 
     expect(response.status).toBe(401);
+  });
+
+  it("rejects malformed login payloads", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("ADMIN_USERNAME", "admin");
+    vi.stubEnv("ADMIN_PASSWORD", "secret");
+
+    const response = await login(
+      new Request("https://app.test/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username: "admin", password: "secret", redirect: "/app" })
+      })
+    );
+
+    expect(response.status).toBe(400);
   });
 
   it("sets an httpOnly session cookie for correct credentials", async () => {

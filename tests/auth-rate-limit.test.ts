@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { SignJWT } from "jose";
 import { signSession, verifySession } from "@/lib/auth";
 import { checkLoginRateLimit } from "@/lib/rate-limit";
 
@@ -14,6 +15,16 @@ describe("auth sessions", () => {
 
     await expect(verifySession(token)).resolves.toBe(true);
     await expect(verifySession("not-a-token")).resolves.toBe(false);
+  });
+
+  it("rejects signed JWTs that do not carry the admin role", async () => {
+    vi.stubEnv("JWT_SECRET", "unit-test-secret");
+    const token = await new SignJWT({ role: "viewer" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setExpirationTime("7d")
+      .sign(new TextEncoder().encode("unit-test-secret"));
+
+    await expect(verifySession(token)).resolves.toBe(false);
   });
 
   it("fails closed without JWT_SECRET outside local development", async () => {

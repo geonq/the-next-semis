@@ -21,8 +21,8 @@ export async function signSession(): Promise<string> {
 
 export async function verifySession(token: string): Promise<boolean> {
   try {
-    await jwtVerify(token, secret());
-    return true;
+    const { payload } = await jwtVerify(token, secret());
+    return payload.role === "admin";
   } catch {
     return false;
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCoingeckoParam, trackedCryptoIds, trackedTickers } from "@/lib/data";
+import { formatCoingeckoParam, parsePositionEntries, trackedCryptoIds, trackedTickers } from "@/lib/data";
 
 describe("data helpers", () => {
   it("deduplicates and sorts tracked tickers across positions and watchlist", () => {
@@ -28,5 +28,17 @@ describe("data helpers", () => {
       { id: "bitcoin", symbol: "BTC" }
     ]);
     expect(formatCoingeckoParam(cryptoIds)).toBe("hyperliquid:HYPE,bitcoin:BTC");
+  });
+
+  it("validates Redis-loaded position entries before use", () => {
+    expect(
+      parsePositionEntries([
+        { ticker: "nvda", company: "NVIDIA", shares: 1, average_cost: 10, currency: "USD", sector: "Semis" }
+      ])
+    ).toEqual([
+      { ticker: "NVDA", company: "NVIDIA", shares: 1, average_cost: 10, currency: "USD", sector: "Semis" }
+    ]);
+
+    expect(parsePositionEntries([{ ticker: "", company: "Bad", shares: "not-a-number" }])).toEqual([]);
   });
 });

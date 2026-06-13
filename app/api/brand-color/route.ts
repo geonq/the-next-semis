@@ -16,6 +16,7 @@ import {
   type ColorCandidate
 } from "@/lib/brand-color";
 import { getBrandColor, setBrandColor } from "@/lib/kv";
+import { isSafePublicUrl } from "@/lib/ssrf";
 
 export const runtime = "nodejs";
 
@@ -42,12 +43,33 @@ const cacheHeaders = {
 // can return a clean null before the platform kills the invocation. On timeout we skip
 // caching so the next request retries fresh.
 const GLOBAL_TIMEOUT_MS = 8500;
+const MAX_PUBLIC_REDIRECTS = 4;
 
 // Combine a per-step timeout with the global abort so whichever fires first wins.
 function withTimeout(ms: number, globalSignal?: AbortSignal): AbortSignal {
   return globalSignal
     ? AbortSignal.any([globalSignal, AbortSignal.timeout(ms)])
     : AbortSignal.timeout(ms);
+}
+
+async function fetchPublic(url: string, init: RequestInit): Promise<{ response: Response; url: string } | null> {
+  let current = url;
+  for (let hop = 0; hop <= MAX_PUBLIC_REDIRECTS; hop += 1) {
+    if (!(await isSafePublicUrl(current))) return null;
+    const response = await fetch(current, { ...init, redirect: "manual" });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) return null;
+      try {
+        current = new URL(location, current).toString();
+      } catch {
+        return null;
+      }
+      continue;
+    }
+    return { response, url: current };
+  }
+  return null;
 }
 
 type DomainSuggestion = {
@@ -127,18 +149,19 @@ async function fetchHomepage(domain: string, globalSignal?: AbortSignal): Promis
     for (let hop = 0; hop < 3; hop += 1) {
       let page: { html: string; baseUrl: string };
       try {
-        const response = await fetch(url, {
-          redirect: "follow",
+        const fetched = await fetchPublic(url, {
           signal: withTimeout(5000, globalSignal),
           headers: { "User-Agent": browserUa }
         });
+        if (!fetched) break;
+        const { response } = fetched;
         if (!response.ok) break; // try the next host form
-        page = { html: await response.text(), baseUrl: response.url || url };
+        page = { html: await response.text(), baseUrl: fetched.url };
       } catch {
         break; // try the next host form
       }
       const next = metaRefreshTarget(page.html, page.baseUrl);
-      if (next && next !== url) {
+      if (next && next !== url && await isSafePublicUrl(next)) {
         url = next;
         continue;
       }
@@ -158,11 +181,12 @@ async function fetchJsBundleColor(html: string, baseUrl: string, globalSignal?: 
   for (const scriptUrl of sameOriginScripts(html, baseUrl)) {
     if (text.length >= jsByteBudget) break;
     try {
-      const response = await fetch(scriptUrl, {
-        redirect: "follow",
+      const fetched = await fetchPublic(scriptUrl, {
         signal: withTimeout(4000, globalSignal),
         headers: { "User-Agent": browserUa }
       });
+      if (!fetched) continue;
+      const { response } = fetched;
       if (!response.ok) continue;
       text += "\n" + (await response.text());
     } catch {
@@ -179,13 +203,14 @@ async function fetchAllCss(html: string, baseUrl: string, globalSignal?: AbortSi
   for (const stylesheetUrl of stylesheetUrls(html, baseUrl)) {
     if (text.length >= cssByteBudget) break;
     try {
-      const stylesheet = await fetch(stylesheetUrl, {
-        redirect: "follow",
+      const fetched = await fetchPublic(stylesheetUrl, {
         signal: withTimeout(3000, globalSignal),
         // Referer mimics a real browser loading the stylesheet from the page.
         // Some CDNs (e.g. RTX/Sitecore) reject requests without a valid Referer.
         headers: { "User-Agent": browserUa, Accept: "text/css", Referer: baseUrl }
       });
+      if (!fetched) continue;
+      const { response: stylesheet } = fetched;
       if (!stylesheet.ok) continue;
       text += "\n" + (await stylesheet.text());
     } catch {
@@ -213,11 +238,12 @@ async function fetchManifestColor(html: string, baseUrl: string, globalSignal?: 
 
   for (const url of Array.from(new Set(urls))) {
     try {
-      const response = await fetch(url, {
-        redirect: "follow",
+      const fetched = await fetchPublic(url, {
         signal: withTimeout(3000, globalSignal),
         headers: { "User-Agent": browserUa, Accept: "application/manifest+json, application/json" }
       });
+      if (!fetched) continue;
+      const { response } = fetched;
       if (!response.ok) continue;
       const manifest = (await response.json()) as { theme_color?: string; background_color?: string };
       for (const raw of [manifest.theme_color, manifest.background_color]) {
@@ -256,11 +282,12 @@ async function fetchSvgLogoColor(html: string, baseUrl: string, globalSignal?: A
 
   for (const url of Array.from(new Set(urls)).slice(0, 3)) {
     try {
-      const response = await fetch(url, {
-        redirect: "follow",
+      const fetched = await fetchPublic(url, {
         signal: withTimeout(3000, globalSignal),
         headers: { "User-Agent": browserUa, Accept: "image/svg+xml" }
       });
+      if (!fetched) continue;
+      const { response } = fetched;
       if (!response.ok) continue;
       const contentType = response.headers.get("content-type") ?? "";
       const text = await response.text();
@@ -285,11 +312,12 @@ async function fetchLogoAccent(domain: string, globalSignal?: AbortSignal): Prom
 
   for (const url of logoUrls) {
     try {
-      const response = await fetch(url, {
-        redirect: "follow",
+      const fetched = await fetchPublic(url, {
         signal: withTimeout(4000, globalSignal),
         headers: { "User-Agent": browserUa, Accept: "image/png" }
       });
+      if (!fetched) continue;
+      const { response } = fetched;
       if (!response.ok) continue;
       const contentType = response.headers.get("content-type") ?? "";
       if (!contentType.includes("image/png")) continue;
