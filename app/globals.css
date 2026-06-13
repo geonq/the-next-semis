@@ -794,6 +794,8 @@ ol {
 
 .reading-section {
   border-top: 1px solid var(--color-grid);
+  max-width: 100%;
+  min-width: 0;
   padding-top: 40px;
 }
 
@@ -1091,6 +1093,10 @@ ol {
 .reading-list {
   display: grid;
   gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
 }
 
 .reading-item {
@@ -1098,6 +1104,8 @@ ol {
   border-bottom: 1px solid var(--color-grid);
   display: flex;
   gap: 24px;
+  max-width: 100%;
+  min-width: 0;
   padding: 16px 0;
 }
 
@@ -1113,6 +1121,7 @@ ol {
   align-items: baseline;
   display: flex;
   gap: 10px;
+  max-width: 100%;
   min-width: 0;
 }
 
@@ -1149,8 +1158,10 @@ ol {
 .reading-title {
   color: var(--color-fg);
   font-size: 15px;
+  flex: 1;
   font-weight: 600;
   line-height: 1.4;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   transition: opacity 150ms ease;
@@ -1174,6 +1185,7 @@ ol {
   line-height: 1.55;
   margin: 0;
   max-width: 760px;
+  overflow-wrap: anywhere;
 }
 
 .reading-meta {
@@ -1184,6 +1196,8 @@ ol {
   font-size: 11px;
   gap: 6px;
   line-height: 1.4;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .reading-theme {
@@ -1192,6 +1206,8 @@ ol {
   color: var(--color-fg);
   flex-shrink: 0;
   font-size: 10px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 2px 6px;
 }
 
@@ -1871,6 +1887,38 @@ ol {
   .reading-header {
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .reading-actions {
+    flex-wrap: wrap;
+  }
+
+  .reading-item {
+    gap: 10px;
+    width: 100%;
+  }
+
+  .reading-item-top {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .reading-title {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+    width: 100%;
+    word-break: break-word;
+  }
+
+  .reading-note {
+    max-width: 100%;
+  }
+
+  .reading-item-right {
+    padding-top: 3px;
   }
 
   .save-fields {
