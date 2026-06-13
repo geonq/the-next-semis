@@ -13,17 +13,19 @@ export function PortfolioClient({
   positions,
   initialQuotes,
   tickers,
+  coingeckoParam,
   watchlist,
   isAdmin
 }: {
   positions: Position[];
   initialQuotes: QuotesByTicker;
   tickers: string[];
+  coingeckoParam?: string;
   watchlist: WatchlistEntry[];
   isAdmin: boolean;
 }) {
   const router = useRouter();
-  const quotes = useLiveQuotes(initialQuotes, tickers);
+  const quotes = useLiveQuotes(initialQuotes, tickers, coingeckoParam);
   const enriched = enrichPositions(positions, quotes).sort((a, b) => (b.total_value ?? 0) - (a.total_value ?? 0));
   const summary = portfolioSummary(enriched);
 
@@ -272,6 +274,7 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
     ticker: "",
     company: "",
     assetClass: "stock" as AssetClass,
+    coinGeckoId: "",
     shares: "",
     average_cost: "",
     currency: "USD",
@@ -290,6 +293,7 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
         ticker: form.ticker,
         company: form.company,
         assetClass: form.assetClass,
+        coinGeckoId: form.coinGeckoId || undefined,
         shares: parseFloat(form.shares),
         average_cost: parseFloat(form.average_cost),
         currency: form.currency,
@@ -299,7 +303,7 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
     });
 
     if (res.ok) {
-      setForm({ ticker: "", company: "", assetClass: "stock", shares: "", average_cost: "", currency: "USD", entry_date: "", sector: "" });
+      setForm({ ticker: "", company: "", assetClass: "stock", coinGeckoId: "", shares: "", average_cost: "", currency: "USD", entry_date: "", sector: "" });
       setOpen(false);
       onAdded();
     } else {
@@ -336,7 +340,9 @@ function AddPositionForm({ onAdded }: { onAdded: () => void }) {
           ticker={form.ticker}
           company={form.company}
           assetClass={form.assetClass}
-          onSelect={(ticker, company) => setForm((f) => ({ ...f, ticker, company: company ?? f.company }))}
+          onSelect={(ticker, company, _assetType, coinGeckoId) =>
+            setForm((f) => ({ ...f, ticker, company: company ?? f.company, coinGeckoId: coinGeckoId ?? f.coinGeckoId }))
+          }
           required
         />
         <input

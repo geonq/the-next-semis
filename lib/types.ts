@@ -9,6 +9,7 @@ export type Position = {
   currency: string;
   sector: string;
   thesis_id?: string;
+  coinGeckoId?: string;
 };
 
 export type DiscoveryContext = {
@@ -44,6 +45,7 @@ export type WatchlistEntry = {
   status: string;
   brandColor: string | null;
   buyTrigger?: string;
+  coinGeckoId?: string;
   discoveryContext?: DiscoveryContext;
 };
 

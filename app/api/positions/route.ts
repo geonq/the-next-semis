@@ -13,7 +13,8 @@ const addSchema = z.object({
   currency: z.enum(SUPPORTED_CURRENCIES),
   entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   sector: z.string().min(1).max(100),
-  thesis_id: z.string().max(100).optional()
+  thesis_id: z.string().max(100).optional(),
+  coinGeckoId: z.string().max(100).optional()
 });
 
 async function fetchHistoricalUsdRate(from: string, date: string): Promise<number | null> {

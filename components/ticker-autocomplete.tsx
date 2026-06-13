@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 type AssetType = "equity" | "etf" | "crypto";
 type AssetClass = "stock" | "crypto";
-type Suggestion = { ticker: string; company: string; exchange: string; assetType: AssetType };
+type Suggestion = { ticker: string; company: string; exchange: string; assetType: AssetType; coinGeckoId?: string };
 
 export function TickerAutocomplete({
   ticker,
@@ -16,7 +16,7 @@ export function TickerAutocomplete({
   ticker: string;
   company: string;
   assetClass?: AssetClass;
-  onSelect: (ticker: string, company?: string, assetType?: AssetType) => void;
+  onSelect: (ticker: string, company?: string, assetType?: AssetType, coinGeckoId?: string) => void;
   required?: boolean;
 }) {
   const [query, setQuery] = useState(ticker);
@@ -77,7 +77,7 @@ export function TickerAutocomplete({
     setQuery(s.ticker);
     setSuggestions([]);
     setOpen(false);
-    onSelect(s.ticker, s.company, s.assetType);
+    onSelect(s.ticker, s.company, s.assetType, s.coinGeckoId);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {

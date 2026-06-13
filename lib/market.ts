@@ -368,6 +368,75 @@ export async function enrichDetailsWithFmp(details: Record<string, QuoteDetail>)
   );
 }
 
+// ── CoinGecko ──────────────────────────────────────────────────────────────
+
+export async function fetchCoinGeckoQuotes(
+  entries: Array<{ id: string; symbol: string }>
+): Promise<QuotesByTicker> {
+  if (entries.length === 0) return {};
+  const ids = entries.map((e) => e.id).join(",");
+  try {
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=usd&include_24hr_change=true`;
+    const res = await fetch(url, {
+      headers: { accept: "application/json" },
+      next: { revalidate: 30 }
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    const result: QuotesByTicker = {};
+    for (const { id, symbol } of entries) {
+      const row = data[id];
+      if (!row || typeof row.usd !== "number") continue;
+      const price = row.usd as number;
+      const changePercent: number | null = typeof row.usd_24h_change === "number" ? row.usd_24h_change : null;
+      const change =
+        changePercent != null ? (price * changePercent) / (100 + changePercent) : null;
+      result[symbol] = {
+        ticker: symbol,
+        price,
+        currency: "USD",
+        regular_market_change: change,
+        regular_market_change_percent: changePercent,
+        timestamp: Math.floor(Date.now() / 1000)
+      };
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+export async function fetchCoinGeckoHistory(id: string, range = "1mo"): Promise<Candle[]> {
+  const days = coingeckoDaysFor(range);
+  try {
+    const url = `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(id)}/ohlc?vs_currency=usd&days=${days}`;
+    const res = await fetch(url, {
+      headers: { accept: "application/json" },
+      next: { revalidate: 300 }
+    });
+    if (!res.ok) return [];
+    const data: number[][] = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.flatMap(([ts, open, high, low, close]) => {
+      if (ts == null || open == null || high == null || low == null || close == null) return [];
+      return [{ time: Math.floor(ts / 1000), open, high, low, close }];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function coingeckoDaysFor(range: string): number {
+  if (range === "1d") return 1;
+  if (range === "5d") return 7;
+  if (range === "1mo") return 30;
+  if (range === "3mo") return 90;
+  if (range === "6mo") return 180;
+  return 365;
+}
+
+// ── Yahoo Finance history ───────────────────────────────────────────────────
+
 export async function fetchHistory(ticker: string, range = "1mo"): Promise<Candle[]> {
   const params = new URLSearchParams({ range, interval: intervalFor(range) });
   const response = await fetch(`${yahooBase}/v8/finance/chart/${encodeURIComponent(ticker)}?${params}`, {

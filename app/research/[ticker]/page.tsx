@@ -10,7 +10,7 @@ import { TickerStateEditor } from "@/components/ticker-state-editor";
 import { verifySession } from "@/lib/auth";
 import { capitalizeFirst, fmtAbs, fmtSignedPct, fmtSignedUsd, signClass } from "@/lib/format";
 import { getSavedItems, getWatchlist } from "@/lib/kv";
-import { fetchHistory, fetchQuotes } from "@/lib/market";
+import { fetchCoinGeckoHistory, fetchCoinGeckoQuotes, fetchHistory, fetchQuotes } from "@/lib/market";
 import { themes } from "@/lib/research";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,12 @@ export default async function TickerPage({ params }: { params: Promise<{ ticker:
   const entry = entries.find((candidate) => candidate.ticker === ticker);
   if (!entry) notFound();
 
-  const [quotes, history] = await Promise.all([fetchQuotes([ticker]), fetchHistory(ticker, "10y")]);
+  const [quotes, history] = entry.coinGeckoId
+    ? await Promise.all([
+        fetchCoinGeckoQuotes([{ id: entry.coinGeckoId, symbol: ticker }]),
+        fetchCoinGeckoHistory(entry.coinGeckoId, "max")
+      ])
+    : await Promise.all([fetchQuotes([ticker]), fetchHistory(ticker, "10y")]);
   const quote = quotes[ticker];
 
   return (

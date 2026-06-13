@@ -40,6 +40,7 @@ const addSchema = z.object({
   conditions: z.array(z.string().max(500)).max(50),
   conviction: z.string().min(1).max(50),
   status: z.string().min(1).max(50),
+  coinGeckoId: z.string().max(100).optional(),
   discoveryContext: discoveryContextSchema
 });
 

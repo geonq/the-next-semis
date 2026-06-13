@@ -19,6 +19,7 @@ export function ResearchClient({
   entries,
   initialQuotes,
   tickers,
+  coingeckoParam,
   themes,
   isAdmin,
   savedItems
@@ -27,11 +28,12 @@ export function ResearchClient({
   initialQuotes: QuotesByTicker;
   savedItems: SavedItem[];
   tickers: string[];
+  coingeckoParam?: string;
   themes: string[];
   isAdmin: boolean;
 }) {
   const router = useRouter();
-  const quotes = useLiveQuotes(initialQuotes, tickers);
+  const quotes = useLiveQuotes(initialQuotes, tickers, coingeckoParam);
   const [activeThemes, setActiveThemes] = useState<Set<string>>(new Set());
   const [conviction, setConviction] = useState("All");
   const enriched = enrichWatchlist(entries, quotes);
@@ -221,6 +223,7 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
     company: "",
     assetClass: "stock" as AssetClass,
     assetType: "equity" as AssetType,
+    coinGeckoId: "",
     theme: "",
     conditions: "",
     conviction: "draft",
@@ -238,6 +241,7 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
         ticker: form.ticker,
         company: form.company,
         assetType: form.assetClass === "crypto" ? "crypto" : form.assetType,
+        coinGeckoId: form.coinGeckoId || undefined,
         theme: form.theme,
         conditions: form.conditions
           .split("\n")
@@ -254,6 +258,7 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
         company: "",
         assetClass: "stock",
         assetType: "equity",
+        coinGeckoId: "",
         theme: "",
         conditions: "",
         conviction: "draft",
@@ -296,8 +301,14 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
           ticker={form.ticker}
           company={form.company}
           assetClass={form.assetClass}
-          onSelect={(ticker, company, assetType) =>
-            setForm((f) => ({ ...f, ticker, company: company ?? f.company, assetType: assetType ?? f.assetType }))
+          onSelect={(ticker, company, assetType, coinGeckoId) =>
+            setForm((f) => ({
+              ...f,
+              ticker,
+              company: company ?? f.company,
+              assetType: assetType ?? f.assetType,
+              coinGeckoId: coinGeckoId ?? f.coinGeckoId
+            }))
           }
           required
         />

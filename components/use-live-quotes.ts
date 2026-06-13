@@ -3,19 +3,23 @@
 import { useEffect, useMemo, useState } from "react";
 import type { QuotesByTicker } from "@/lib/types";
 
-export function useLiveQuotes(initialQuotes: QuotesByTicker, tickers: string[]): QuotesByTicker {
+export function useLiveQuotes(
+  initialQuotes: QuotesByTicker,
+  tickers: string[],
+  coingeckoParam?: string
+): QuotesByTicker {
   const [quotes, setQuotes] = useState(initialQuotes);
   const symbols = useMemo(() => tickers.join(","), [tickers]);
 
   useEffect(() => {
-    if (!symbols) return;
+    if (!symbols && !coingeckoParam) return;
 
     let cancelled = false;
 
     async function refresh() {
-      const response = await fetch(`/api/quotes?symbols=${encodeURIComponent(symbols)}`, {
-        cache: "no-store"
-      });
+      let url = `/api/quotes?symbols=${encodeURIComponent(symbols)}`;
+      if (coingeckoParam) url += `&coingecko=${encodeURIComponent(coingeckoParam)}`;
+      const response = await fetch(url, { cache: "no-store" });
 
       if (!response.ok || cancelled) return;
       setQuotes(await response.json());
@@ -26,7 +30,7 @@ export function useLiveQuotes(initialQuotes: QuotesByTicker, tickers: string[]):
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [symbols]);
+  }, [symbols, coingeckoParam]);
 
   return quotes;
 }

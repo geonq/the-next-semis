@@ -22,7 +22,8 @@ export const watchlistSchema = z.object({
   conviction: z.string().min(1),
   status: z.string().min(1),
   brandColor: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().default(null),
-  buyTrigger: z.string().max(500).optional()
+  buyTrigger: z.string().max(500).optional(),
+  coinGeckoId: z.string().max(100).optional()
 }).transform((entry) => ({
   ...entry,
   assetType: entry.assetType ?? "equity",
@@ -61,5 +62,32 @@ export async function loadThesis(): Promise<string> {
 }
 
 export function trackedTickers(positions: Position[], watchlist: WatchlistEntry[]): string[] {
-  return Array.from(new Set([...positions, ...watchlist].map((entry) => entry.ticker))).sort();
+  return Array.from(
+    new Set(
+      [...positions, ...watchlist]
+        .filter((entry) => !entry.coinGeckoId)
+        .map((entry) => entry.ticker)
+    )
+  ).sort();
+}
+
+export function trackedCryptoIds(
+  positions: Position[],
+  watchlist: WatchlistEntry[]
+): Array<{ id: string; symbol: string }> {
+  const seen = new Set<string>();
+  const result: Array<{ id: string; symbol: string }> = [];
+  for (const entry of [...positions, ...watchlist]) {
+    if (entry.coinGeckoId && !seen.has(entry.coinGeckoId)) {
+      seen.add(entry.coinGeckoId);
+      result.push({ id: entry.coinGeckoId, symbol: entry.ticker });
+    }
+  }
+  return result;
+}
+
+export function formatCoingeckoParam(
+  cryptoIds: Array<{ id: string; symbol: string }>
+): string {
+  return cryptoIds.map(({ id, symbol }) => `${id}:${symbol}`).join(",");
 }
