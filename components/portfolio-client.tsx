@@ -199,6 +199,8 @@ export function PortfolioClient({
         />
       ) : null}
 
+      {isAdmin ? <AddPositionForm onAdded={() => router.refresh()} /> : null}
+
       <RealizedPnlSection
         entries={realizedEntries}
         summary={realizedSummary}
@@ -219,12 +221,11 @@ export function PortfolioClient({
         />
       ) : null}
 
+      {isAdmin ? <AddRealizedPnlForm onAdded={() => router.refresh()} /> : null}
+
       <RealizedLeaders winners={biggestWinners} losers={biggestLosers} />
 
       <Concentration enriched={enriched} watchlist={watchlist} positions={positions} realizedEntries={realizedEntries} />
-
-      {isAdmin ? <AddRealizedPnlForm onAdded={() => router.refresh()} /> : null}
-      {isAdmin ? <AddPositionForm onAdded={() => router.refresh()} /> : null}
     </div>
   );
 }
