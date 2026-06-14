@@ -293,7 +293,8 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
               ticker: "",
               company: "",
               assetClass: value === "Crypto" ? "crypto" : "stock",
-              assetType: value === "Crypto" ? "crypto" : "equity"
+              assetType: value === "Crypto" ? "crypto" : "equity",
+              coinGeckoId: ""
             }))
           }
         />
@@ -305,9 +306,9 @@ function AddTickerForm({ themes, onAdded }: { themes: string[]; onAdded: () => v
             setForm((f) => ({
               ...f,
               ticker,
-              company: company ?? f.company,
-              assetType: assetType ?? f.assetType,
-              coinGeckoId: coinGeckoId ?? f.coinGeckoId
+              company: company ?? "",
+              assetType: assetType ?? (f.assetClass === "crypto" ? "crypto" : "equity"),
+              coinGeckoId: coinGeckoId ?? ""
             }))
           }
           required

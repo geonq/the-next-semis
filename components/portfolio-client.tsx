@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useId, useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
+import { BITSTAMP_PERPS, findBitstampPerpByTicker } from "@/lib/perps";
 import {
   enrichPositions,
   enrichRealizedPnl,
@@ -24,21 +25,6 @@ import { SegmentedTabs } from "./segmented-tabs";
 import { TickerAutocomplete } from "./ticker-autocomplete";
 import { useLiveQuotes } from "./use-live-quotes";
 import { useLivePerpQuotes } from "./use-live-perp-quotes";
-
-const BITSTAMP_PERPS = [
-  { ticker: "BTC",  name: "Bitcoin Perp",   market: "btcusd-perp" },
-  { ticker: "ETH",  name: "Ethereum Perp",  market: "ethusd-perp" },
-  { ticker: "SOL",  name: "Solana Perp",    market: "solusd-perp" },
-  { ticker: "XRP",  name: "XRP Perp",       market: "xrpusd-perp" },
-  { ticker: "LTC",  name: "Litecoin Perp",  market: "ltcusd-perp" },
-  { ticker: "LINK", name: "Chainlink Perp", market: "linkusd-perp" },
-  { ticker: "ADA",  name: "Cardano Perp",   market: "adausd-perp" },
-  { ticker: "DOGE", name: "Dogecoin Perp",  market: "dogeusd-perp" },
-  { ticker: "AVAX", name: "Avalanche Perp", market: "avaxusd-perp" },
-  { ticker: "DOT",  name: "Polkadot Perp",  market: "dotusd-perp" },
-  { ticker: "UNI",  name: "Uniswap Perp",   market: "uniusd-perp" },
-  { ticker: "AAVE", name: "Aave Perp",      market: "aaveusd-perp" },
-] as const;
 
 export function PortfolioClient({
   positions,
@@ -870,7 +856,7 @@ function realizedPnlPayload(form: RealizedPnlFormState) {
     margin_mode: isPerp ? form.margin_mode : undefined,
     margin_used: isPerp && form.margin_used ? parseFloat(form.margin_used) : undefined,
     bitstamp_market: isPerp && form.bitstamp_market ? form.bitstamp_market : undefined,
-    currency: form.currency,
+    currency: isPerp ? "USD" : form.currency,
     opened_at: form.opened_at || undefined,
     closed_at: form.closed_at,
     sector: form.sector || undefined,
@@ -1083,37 +1069,82 @@ function RealizedPnlFormFields({
   setForm: Dispatch<SetStateAction<RealizedPnlFormState>>;
 }) {
   const isPerp = form.assetClass === "perp";
+  const knownPerp = isPerp ? findBitstampPerpByTicker(form.ticker) : undefined;
+  const perpTickerListId = useId();
   return (
     <div className="add-fields">
       <SegmentedTabs
         options={["Stock", "Crypto", "Perp"]}
         value={form.assetClass === "crypto" ? "Crypto" : isPerp ? "Perp" : "Stock"}
-        onChange={(value) =>
-          setForm((f) => ({
-            ...f,
-            assetClass: value === "Crypto" ? "crypto" : value === "Perp" ? "perp" : "stock"
-          }))
-        }
+        onChange={(value) => {
+          setForm((f) => {
+            const nextAssetClass = value === "Crypto" ? "crypto" : value === "Perp" ? "perp" : "stock";
+            const match = nextAssetClass === "perp" ? findBitstampPerpByTicker(f.ticker) : undefined;
+            return {
+              ...f,
+              assetClass: nextAssetClass,
+              currency: nextAssetClass === "perp" ? "USD" : f.currency,
+              ...(nextAssetClass !== "perp" ? { bitstamp_market: "" } : {}),
+              ...(match ? { company: match.name, bitstamp_market: match.market } : {})
+            };
+          });
+        }}
       />
       <SegmentedTabs
         options={["Long", "Short"]}
         value={form.side === "short" ? "Short" : "Long"}
         onChange={(value) => setForm((f) => ({ ...f, side: value === "Short" ? "short" : "long" }))}
       />
-      <input
-        className="add-input"
-        placeholder="Ticker"
-        required
-        value={form.ticker}
-        onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value.toUpperCase() }))}
-      />
-      <input
-        className="add-input"
-        placeholder={isPerp ? "Market name" : "Company"}
-        required
-        value={form.company}
-        onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
-      />
+      {isPerp ? (
+        <>
+          <input
+            className="add-input"
+            placeholder="Ticker (e.g. BTC)"
+            required
+            list={perpTickerListId}
+            value={form.ticker}
+            onChange={(e) => {
+              const val = e.target.value.toUpperCase();
+              const match = findBitstampPerpByTicker(val);
+              setForm((f) => ({
+                ...f,
+                ticker: val,
+                ...(match ? { company: match.name, bitstamp_market: match.market, currency: "USD" } : {}),
+                ...(!match && findBitstampPerpByTicker(f.ticker) ? { company: "", bitstamp_market: "" } : {})
+              }));
+            }}
+          />
+          <datalist id={perpTickerListId}>
+            {BITSTAMP_PERPS.map((p) => (
+              <option key={p.ticker} value={p.ticker}>{p.name}</option>
+            ))}
+          </datalist>
+        </>
+      ) : (
+        <TickerAutocomplete
+          ticker={form.ticker}
+          company={form.company}
+          assetClass={form.assetClass === "crypto" ? "crypto" : "stock"}
+          onSelect={(ticker, company, assetType) =>
+            setForm((f) => ({
+              ...f,
+              ticker,
+              company: company ?? "",
+              sector: assetType === "crypto" ? "Crypto" : f.sector
+            }))
+          }
+          required
+        />
+      )}
+      {!isPerp || !knownPerp ? (
+        <input
+          className="add-input"
+          placeholder={isPerp ? "Market name" : "Company"}
+          required
+          value={form.company}
+          onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
+        />
+      ) : null}
       <input
         className="add-input"
         placeholder="Quantity"
@@ -1177,12 +1208,14 @@ function RealizedPnlFormFields({
             value={form.margin_used}
             onChange={(e) => setForm((f) => ({ ...f, margin_used: e.target.value }))}
           />
-          <input
-            className="add-input"
-            placeholder="Bitstamp market (e.g. btcusd-perp)"
-            value={form.bitstamp_market}
-            onChange={(e) => setForm((f) => ({ ...f, bitstamp_market: e.target.value.toLowerCase() }))}
-          />
+          {!knownPerp ? (
+            <input
+              className="add-input"
+              placeholder="Bitstamp market (e.g. btcusd-perp)"
+              value={form.bitstamp_market}
+              onChange={(e) => setForm((f) => ({ ...f, bitstamp_market: e.target.value.toLowerCase() }))}
+            />
+          ) : null}
         </>
       ) : null}
       {!isPerp ? (
@@ -1236,11 +1269,13 @@ function PositionFormFields({
   form: PositionFormState;
   setForm: Dispatch<SetStateAction<PositionFormState>>;
 }) {
+  const perpTickerListId = useId();
+
   function switchClass(next: AssetClass) {
     setForm((f) => ({ ...f, ticker: "", company: "", coinGeckoId: "", bitstamp_market: "", assetClass: next }));
   }
 
-  const knownPerp = BITSTAMP_PERPS.find((p) => p.ticker === form.ticker);
+  const knownPerp = findBitstampPerpByTicker(form.ticker);
 
   return (
     <div className="add-fields">
@@ -1256,19 +1291,20 @@ function PositionFormFields({
             className="add-input"
             placeholder="Ticker (e.g. BTC)"
             required
-            list="perp-tickers"
+            list={perpTickerListId}
             value={form.ticker}
             onChange={(e) => {
               const val = e.target.value.toUpperCase();
-              const match = BITSTAMP_PERPS.find((p) => p.ticker === val);
+              const match = findBitstampPerpByTicker(val);
               setForm((f) => ({
                 ...f,
                 ticker: val,
                 ...(match ? { company: match.name, bitstamp_market: match.market } : {}),
+                ...(!match && findBitstampPerpByTicker(f.ticker) ? { company: "", bitstamp_market: "" } : {})
               }));
             }}
           />
-          <datalist id="perp-tickers">
+          <datalist id={perpTickerListId}>
             {BITSTAMP_PERPS.map((p) => (
               <option key={p.ticker} value={p.ticker}>{p.name}</option>
             ))}
@@ -1345,7 +1381,12 @@ function PositionFormFields({
             company={form.company}
             assetClass={form.assetClass}
             onSelect={(ticker, company, _assetType, coinGeckoId) =>
-              setForm((f) => ({ ...f, ticker, company: company ?? f.company, coinGeckoId: coinGeckoId ?? f.coinGeckoId }))
+              setForm((f) => ({
+                ...f,
+                ticker,
+                company: company ?? "",
+                coinGeckoId: coinGeckoId ?? ""
+              }))
             }
             required
           />

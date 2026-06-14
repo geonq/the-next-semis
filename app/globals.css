@@ -273,6 +273,18 @@ ol {
   font-size: 13px;
 }
 
+.table td.gain {
+  color: var(--color-gain);
+}
+
+.table td.loss {
+  color: var(--color-loss);
+}
+
+.table td.neutral {
+  color: var(--color-neutral);
+}
+
 .table tbody tr {
   transition: background 150ms ease;
 }
