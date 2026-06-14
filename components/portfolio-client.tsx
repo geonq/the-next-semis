@@ -122,8 +122,8 @@ export function PortfolioClient({
               <th>Value</th>
               <th>PnL $</th>
               <th>PnL %</th>
-              <th>Day / FR</th>
-              {isAdmin ? <th /> : null}
+              <th>Day / Funding</th>
+              {isAdmin ? <th className="action-cell" /> : null}
             </tr>
           </thead>
           <tbody>
@@ -157,26 +157,28 @@ export function PortfolioClient({
                   <td className={`tabular ${signClass(position.pnl_percent)}`}>{fmtSignedPct(position.pnl_percent)}</td>
                   <td className={`tabular ${isPerp ? signClass(position.funding_rate) : signClass(position.day_change_percent)}`}>
                     {isPerp
-                      ? (position.funding_rate != null ? `fr ${fmtFundingRate(position.funding_rate)}` : "—")
+                      ? (position.funding_rate != null ? `Funding ${fmtFundingRate(position.funding_rate)}` : "—")
                       : fmtSignedPct(position.day_change_percent)}
                   </td>
                   {isAdmin ? (
-                    <td className="position-actions">
-                      <button
-                        className="edit-btn"
-                        onClick={() => setEditingPosition(positions.find((p) => p.ticker === position.ticker) ?? null)}
-                        type="button"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="delete-btn"
-                        onClick={() => deletePosition(position.ticker)}
-                        type="button"
-                        aria-label={`Remove ${position.ticker}`}
-                      >
-                        ✕
-                      </button>
+                    <td className="action-cell">
+                      <span className="position-actions">
+                        <button
+                          className="edit-btn"
+                          onClick={() => setEditingPosition(positions.find((p) => p.ticker === position.ticker) ?? null)}
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="delete-btn"
+                          onClick={() => deletePosition(position.ticker)}
+                          type="button"
+                          aria-label={`Remove ${position.ticker}`}
+                        >
+                          ✕
+                        </button>
+                      </span>
                     </td>
                   ) : null}
                 </tr>
@@ -186,6 +188,17 @@ export function PortfolioClient({
         </table>
       </div>
 
+      {isAdmin && editingPosition ? (
+        <EditPositionForm
+          position={editingPosition}
+          onCancel={() => setEditingPosition(null)}
+          onSaved={() => {
+            setEditingPosition(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+
       <RealizedPnlSection
         entries={realizedEntries}
         summary={realizedSummary}
@@ -194,10 +207,6 @@ export function PortfolioClient({
         onEdit={(id) => setEditingRealizedPnl(realizedPnl.find((entry) => entry.id === id) ?? null)}
         onDelete={deleteRealizedPnl}
       />
-
-      <RealizedLeaders winners={biggestWinners} losers={biggestLosers} />
-
-      <Concentration enriched={enriched} watchlist={watchlist} positions={positions} realizedEntries={realizedEntries} />
 
       {isAdmin && editingRealizedPnl ? (
         <EditRealizedPnlForm
@@ -210,16 +219,9 @@ export function PortfolioClient({
         />
       ) : null}
 
-      {isAdmin && editingPosition ? (
-        <EditPositionForm
-          position={editingPosition}
-          onCancel={() => setEditingPosition(null)}
-          onSaved={() => {
-            setEditingPosition(null);
-            router.refresh();
-          }}
-        />
-      ) : null}
+      <RealizedLeaders winners={biggestWinners} losers={biggestLosers} />
+
+      <Concentration enriched={enriched} watchlist={watchlist} positions={positions} realizedEntries={realizedEntries} />
 
       {isAdmin ? <AddRealizedPnlForm onAdded={() => router.refresh()} /> : null}
       {isAdmin ? <AddPositionForm onAdded={() => router.refresh()} /> : null}
@@ -440,7 +442,7 @@ function RealizedPnlSection({
               <th>RPNL %</th>
               <th>Closed</th>
               {hasPerpRows ? <th>Perp Market</th> : null}
-              {isAdmin ? <th /> : null}
+              {isAdmin ? <th className="action-cell" /> : null}
             </tr>
           </thead>
           <tbody>
@@ -471,7 +473,7 @@ function RealizedPnlSection({
                         <span className="perp-market-cell">
                           <span>mark {fmtUsd(perpQuote.mark_price)}</span>
                           <span className={signClass(perpQuote.funding_rate)}>
-                            fr {fmtFundingRate(perpQuote.funding_rate)}
+                            Funding {fmtFundingRate(perpQuote.funding_rate)}
                           </span>
                         </span>
                       ) : (
@@ -480,18 +482,20 @@ function RealizedPnlSection({
                     </td>
                   ) : null}
                   {isAdmin ? (
-                    <td className="position-actions">
-                      <button className="edit-btn" onClick={() => onEdit(entry.id)} type="button">
-                        Edit
-                      </button>
-                      <button
-                        className="delete-btn"
-                        onClick={() => onDelete(entry.id)}
-                        type="button"
-                        aria-label={`Remove realized PnL entry for ${entry.ticker}`}
-                      >
-                        ✕
-                      </button>
+                    <td className="action-cell">
+                      <span className="position-actions">
+                        <button className="edit-btn" onClick={() => onEdit(entry.id)} type="button">
+                          Edit
+                        </button>
+                        <button
+                          className="delete-btn"
+                          onClick={() => onDelete(entry.id)}
+                          type="button"
+                          aria-label={`Remove realized PnL entry for ${entry.ticker}`}
+                        >
+                          ✕
+                        </button>
+                      </span>
                     </td>
                   ) : null}
                 </tr>
@@ -872,8 +876,13 @@ function fmtQuantity(value: number): string {
 
 function fmtFundingRate(value: number | null | undefined): string {
   if (value == null) return "—";
-  const sign = value >= 0 ? "+" : "";
-  return `${sign}${value.toFixed(4)}%`;
+  if (value === 0) return "0%";
+
+  const sign = value > 0 ? "+" : "-";
+  const abs = Math.abs(value);
+  if (abs < 0.0001) return `${sign}<0.0001%`;
+
+  return `${sign}${abs.toLocaleString("en-US", { maximumFractionDigits: 4 })}%`;
 }
 
 function marginLabel(entry: EnrichedRealizedPnlEntry): string {

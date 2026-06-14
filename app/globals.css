@@ -285,6 +285,16 @@ ol {
   color: var(--color-neutral);
 }
 
+.table th.action-cell,
+.table td.action-cell {
+  padding-left: 30px;
+  width: 86px;
+}
+
+.table td.action-cell {
+  text-align: right;
+}
+
 .table tbody tr {
   transition: background 150ms ease;
 }
@@ -307,7 +317,7 @@ ol {
 .position-actions {
   align-items: center;
   display: inline-flex;
-  gap: 8px;
+  gap: 14px;
   justify-content: flex-end;
 }
 
