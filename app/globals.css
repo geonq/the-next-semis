@@ -874,6 +874,45 @@ ol {
   margin: 0;
 }
 
+.cash-section {
+  display: grid;
+  gap: 16px;
+}
+
+.cash-header {
+  align-items: flex-end;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.cash-metrics {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.cash-note {
+  max-width: 340px;
+  text-align: right;
+}
+
+.cash-list {
+  display: grid;
+  gap: 0;
+}
+
+.cash-row {
+  align-items: center;
+  border-bottom: 1px solid var(--color-grid);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
 .news-panel {
   border-top: 1px solid var(--color-grid);
   padding-top: 32px;
@@ -2075,6 +2114,18 @@ ol {
 
   .portfolio-chart {
     height: 300px;
+  }
+
+  .cash-header,
+  .cash-row {
+    align-items: stretch;
+    display: grid;
+    gap: 10px;
+  }
+
+  .cash-note {
+    max-width: none;
+    text-align: left;
   }
 
   .table-wrap {

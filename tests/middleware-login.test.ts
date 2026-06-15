@@ -11,6 +11,7 @@ afterEach(() => {
 describe("write middleware", () => {
   it("matches realized PnL writes", () => {
     expect(config.matcher).toContain("/api/realized-pnl/:path*");
+    expect(config.matcher).toContain("/api/cash/:path*");
   });
 
   it("blocks write requests without a valid session", async () => {

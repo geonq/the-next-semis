@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  accountSummary,
   buildPortfolioChartSeries,
+  cashFlowsTotal,
   enrichPositions,
   enrichRealizedPnl,
+  estimatedCashBalance,
   historySourceForPortfolioRange,
   movers,
   portfolioSummary,
@@ -10,7 +13,7 @@ import {
   realizedPnlSummary,
   weightedAverageCost
 } from "@/lib/portfolio";
-import type { Position, QuotesByTicker, RealizedPnlEntry } from "@/lib/types";
+import type { CashEntry, Position, QuotesByTicker, RealizedPnlEntry } from "@/lib/types";
 
 const positions: Position[] = [
   { ticker: "NVDA", company: "NVIDIA", shares: 10, average_cost: 100, currency: "USD", sector: "Semis" },
@@ -76,6 +79,11 @@ const realizedPnl: RealizedPnlEntry[] = [
     currency: "USD",
     closed_at: "2026-01-12"
   }
+];
+
+const cashEntries: CashEntry[] = [
+  { id: "deposit-usd", amount: 1000, amount_usd: 1000, currency: "USD", date: "2026-01-01" },
+  { id: "deposit-eur", amount: 100, amount_usd: 110, currency: "EUR", date: "2026-01-05" }
 ];
 
 describe("portfolio calculations", () => {
@@ -163,6 +171,17 @@ describe("portfolio calculations", () => {
     expect(realizedPnlLeaders(enriched, "losers").map((entry) => entry.id)).toEqual(["loss-1"]);
   });
 
+  it("summarizes account value from cash flows plus active and realized PnL", () => {
+    const enriched = enrichPositions(positions, quotes);
+    const realized = enrichRealizedPnl(realizedPnl);
+    const summary = accountSummary(enriched, realized, cashEntries);
+
+    expect(cashFlowsTotal(cashEntries)).toBe(1110);
+    expect(summary.total_value).toBe(6595);
+    expect(summary.day_change_dollars).toBe(20);
+    expect(estimatedCashBalance(cashEntries, positions, realized)).toBe(4944);
+  });
+
   it("maps portfolio chart ranges to bounded history sources", () => {
     expect(historySourceForPortfolioRange("live")).toBe("1d");
     expect(historySourceForPortfolioRange("1d")).toBe("1d");
@@ -204,6 +223,33 @@ describe("portfolio calculations", () => {
     });
   });
 
+  it("builds a cash-aware account chart from deposits plus PnL instead of double-counting cost basis", () => {
+    const chartPositions: Position[] = [
+      { ticker: "NVDA", company: "NVIDIA", shares: 2, average_cost: 100, entry_date: "2026-01-02", currency: "USD", sector: "Semis" }
+    ];
+    const series = buildPortfolioChartSeries({
+      positions: chartPositions,
+      realizedPnl: [],
+      cashEntries,
+      now: Date.UTC(2026, 0, 12, 12) / 1000,
+      histories: {
+        max: {
+          NVDA: [
+            { time: Date.UTC(2026, 0, 2) / 1000, open: 100, high: 100, low: 100, close: 100 },
+            { time: Date.UTC(2026, 0, 12) / 1000, open: 140, high: 140, low: 140, close: 140 }
+          ]
+        }
+      }
+    });
+
+    expect(series.all.at(-1)).toMatchObject({
+      value: 1190,
+      active_value: 280,
+      realized_pnl: 0
+    });
+    expect(series.all.some((point) => point.time === Date.UTC(2026, 0, 5) / 1000 && point.value === 1110)).toBe(true);
+  });
+
   it("does not count active holdings before their entry date", () => {
     const series = buildPortfolioChartSeries({
       positions: [
@@ -221,6 +267,9 @@ describe("portfolio calculations", () => {
       }
     });
 
-    expect(series.all).toEqual([{ time: Date.UTC(2026, 0, 10) / 1000, value: 240, active_value: 240, realized_pnl: 0 }]);
+    expect(series.all).toEqual([
+      { time: Date.UTC(2026, 0, 10) / 1000, value: 240, active_value: 240, realized_pnl: 0 },
+      { time: Date.UTC(2026, 0, 12, 12) / 1000, value: 240, active_value: 240, realized_pnl: 0 }
+    ]);
   });
 });

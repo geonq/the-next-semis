@@ -1,14 +1,23 @@
 "use client";
 
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
-import { enrichPositions, movers, portfolioSummary } from "@/lib/portfolio";
-import type { BitstampPerpQuotesByMarket, PortfolioChartSeriesByRange, Position, QuotesByTicker } from "@/lib/types";
+import { accountSummary, enrichPositions, enrichRealizedPnl, movers } from "@/lib/portfolio";
+import type {
+  BitstampPerpQuotesByMarket,
+  CashEntry,
+  PortfolioChartSeriesByRange,
+  Position,
+  QuotesByTicker,
+  RealizedPnlEntry
+} from "@/lib/types";
 import { PortfolioChart } from "./portfolio-chart";
 import { useLiveQuotes } from "./use-live-quotes";
 import { useLivePerpQuotes } from "./use-live-perp-quotes";
 
 export function OverviewClient({
   positions,
+  realizedPnl,
+  cashEntries,
   chartSeries,
   initialQuotes,
   initialPerpQuotes,
@@ -16,6 +25,8 @@ export function OverviewClient({
   coingeckoParam
 }: {
   positions: Position[];
+  realizedPnl: RealizedPnlEntry[];
+  cashEntries: CashEntry[];
   chartSeries: PortfolioChartSeriesByRange;
   initialQuotes: QuotesByTicker;
   initialPerpQuotes: BitstampPerpQuotesByMarket;
@@ -28,7 +39,8 @@ export function OverviewClient({
   const quotes = useLiveQuotes(initialQuotes, tickers, coingeckoParam);
   const perpQuotes = useLivePerpQuotes(initialPerpQuotes, perpMarkets);
   const enriched = enrichPositions(positions, quotes, perpQuotes);
-  const summary = portfolioSummary(enriched);
+  const realizedEntries = enrichRealizedPnl(realizedPnl);
+  const summary = accountSummary(enriched, realizedEntries, cashEntries);
   const topGainers = movers(enriched, "desc");
   const topLosers = movers(enriched, "asc");
 

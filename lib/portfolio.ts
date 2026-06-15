@@ -1,6 +1,7 @@
 import type {
   BitstampPerpQuotesByMarket,
   Candle,
+  CashEntry,
   EnrichedPosition,
   EnrichedRealizedPnlEntry,
   PortfolioChartRange,
@@ -91,6 +92,29 @@ export function portfolioSummary(positions: EnrichedPosition[]): PortfolioSummar
     total_value: totalValue,
     day_change_dollars: dayChangeDollars,
     day_change_percent: dayChangePercent
+  };
+}
+
+export function accountSummary(
+  positions: EnrichedPosition[],
+  realizedEntries: EnrichedRealizedPnlEntry[],
+  cashEntries: CashEntry[]
+): PortfolioSummary {
+  const positionSummary = portfolioSummary(positions);
+  if (cashEntries.length === 0) return positionSummary;
+
+  const netCashFlows = cashFlowsTotal(cashEntries);
+  const totalRealizedPnl = realizedEntries.reduce((sum, entry) => sum + entry.realized_pnl, 0);
+  const activePnl = positions.reduce((sum, position) => sum + (position.pnl_dollars ?? 0), 0);
+  const totalValue = netCashFlows + totalRealizedPnl + activePnl;
+  const dayChangeDollars = positionSummary.day_change_dollars;
+
+  return {
+    total_value: totalValue,
+    day_change_dollars: dayChangeDollars,
+    day_change_percent: totalValue > dayChangeDollars
+      ? (dayChangeDollars / (totalValue - dayChangeDollars)) * 100
+      : 0
   };
 }
 
@@ -201,17 +225,48 @@ function isHistoricalPosition(position: Position): boolean {
   return position.assetClass !== "perp" && position.shares > 0;
 }
 
+function positionCostBasis(position: Position): number {
+  return position.shares * (position.average_cost_usd ?? position.average_cost);
+}
+
+export function cashFlowsTotal(entries: CashEntry[]): number {
+  return entries.reduce((sum, entry) => sum + (entry.amount_usd ?? entry.amount), 0);
+}
+
+export function estimatedCashBalance(
+  cashEntries: CashEntry[],
+  positions: Position[],
+  realizedEntries: EnrichedRealizedPnlEntry[]
+): number {
+  const activeCostBasis = positions.reduce((sum, position) => {
+    if (position.assetClass === "perp") return sum + (position.margin_used ?? positionCostBasis(position));
+    return sum + positionCostBasis(position);
+  }, 0);
+  const realizedPnl = realizedEntries.reduce((sum, entry) => sum + entry.realized_pnl, 0);
+  return cashFlowsTotal(cashEntries) + realizedPnl - activeCostBasis;
+}
+
 export function buildPortfolioChartSeries({
   positions,
   realizedPnl,
+  cashEntries = [],
   histories,
   now = Math.floor(Date.now() / 1000)
 }: {
   positions: Position[];
   realizedPnl: RealizedPnlEntry[];
+  cashEntries?: CashEntry[];
   histories: PortfolioChartHistories;
   now?: number;
 }): PortfolioChartSeriesByRange {
+  const hasCashLedger = cashEntries.length > 0;
+  const cashFlows = cashEntries
+    .map((entry) => ({
+      time: dateToUtcSeconds(entry.date),
+      value: entry.amount_usd ?? entry.amount
+    }))
+    .filter((entry): entry is { time: number; value: number } => entry.time != null)
+    .sort((a, b) => a.time - b.time);
   const realizedEntries = enrichRealizedPnl(realizedPnl)
     .map((entry) => ({
       closedAt: dateToUtcSeconds(entry.closed_at),
@@ -245,27 +300,45 @@ export function buildPortfolioChartSeries({
       for (const entry of realizedEntries) {
         if (entry.closedAt >= start && entry.closedAt <= now) times.add(entry.closedAt);
       }
+      for (const entry of cashFlows) {
+        if (entry.time >= start && entry.time <= now) {
+          if (entry.time - 1 >= start) times.add(entry.time - 1);
+          times.add(entry.time);
+        }
+      }
+      times.add(now);
 
       const sortedTimes = Array.from(times).sort((a, b) => a - b);
       const lastCloseByTicker = new Map<string, number>();
       const historyIndexByTicker = new Map<string, number>();
       let realizedIndex = 0;
       let cumulativeRealized = 0;
+      let cashIndex = 0;
+      let cumulativeCash = 0;
 
       while (realizedIndex < realizedEntries.length && realizedEntries[realizedIndex].closedAt < start) {
         cumulativeRealized += realizedEntries[realizedIndex].value;
         realizedIndex += 1;
       }
+      while (cashIndex < cashFlows.length && cashFlows[cashIndex].time < start) {
+        cumulativeCash += cashFlows[cashIndex].value;
+        cashIndex += 1;
+      }
 
       return [
         range,
         sortedTimes.flatMap((time) => {
+          while (cashIndex < cashFlows.length && cashFlows[cashIndex].time <= time) {
+            cumulativeCash += cashFlows[cashIndex].value;
+            cashIndex += 1;
+          }
           while (realizedIndex < realizedEntries.length && realizedEntries[realizedIndex].closedAt <= time) {
             cumulativeRealized += realizedEntries[realizedIndex].value;
             realizedIndex += 1;
           }
 
           let activeValue = 0;
+          let activeUnrealizedPnl = 0;
           for (const { position, entryTime, history } of positionsWithEntryTime) {
             let index = historyIndexByTicker.get(position.ticker) ?? 0;
             while (index < history.length && history[index].time <= time) {
@@ -278,11 +351,19 @@ export function buildPortfolioChartSeries({
             const close = lastCloseByTicker.get(position.ticker);
             if (close == null) continue;
             activeValue += position.shares * close;
+            activeUnrealizedPnl += position.shares * (close - (position.average_cost_usd ?? position.average_cost));
           }
 
-          const value = activeValue + cumulativeRealized;
+          const value = hasCashLedger
+            ? cumulativeCash + cumulativeRealized + activeUnrealizedPnl
+            : activeValue + cumulativeRealized;
           if (value === 0) return [];
-          return [{ time, value, active_value: activeValue, realized_pnl: cumulativeRealized }];
+          return [{
+            time,
+            value,
+            active_value: activeValue,
+            realized_pnl: cumulativeRealized
+          }];
         })
       ];
     })

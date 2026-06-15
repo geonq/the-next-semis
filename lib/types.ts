@@ -22,6 +22,15 @@ export type Position = {
   bitstamp_market?: string;
 };
 
+export type CashEntry = {
+  id: string;
+  amount: number;
+  amount_usd?: number;
+  currency: "USD" | "EUR" | "GBP" | "JPY";
+  date: string;
+  note?: string;
+};
+
 export type RealizedPnlEntry = {
   id: string;
   ticker: string;

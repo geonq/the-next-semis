@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AreaSeries,
-  PriceScaleMode,
   createChart,
   type AreaData,
   type ISeriesApi,
@@ -43,8 +42,12 @@ function rangeStats(points: PortfolioChartPoint[]) {
   return { first, last, change, changePct };
 }
 
-function chartScaleMode(points: PortfolioChartPoint[]): PriceScaleMode {
-  return points.every((point) => point.value > 0) ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal;
+function chartData(points: PortfolioChartPoint[]): AreaData<Time>[] {
+  const base = points.find((point) => point.value !== 0)?.value ?? 0;
+  return points.map((point) => ({
+    time: point.time as Time,
+    value: base === 0 ? point.value : ((point.value - base) / Math.abs(base)) * 100
+  }));
 }
 
 export function PortfolioChart({
@@ -97,9 +100,10 @@ export function PortfolioChart({
       rightPriceScale: {
         borderColor: colors.grid,
         borderVisible: false,
+        visible: false,
         scaleMargins: {
-          top: 0.16,
-          bottom: 0.16
+          top: 0.08,
+          bottom: 0.08
         }
       }
     });
@@ -110,7 +114,7 @@ export function PortfolioChart({
       bottomColor: portfolioChartBlue + "0a",
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: true
+      lastValueVisible: false
     });
 
     chartRef.current = chart;
@@ -135,9 +139,10 @@ export function PortfolioChart({
         rightPriceScale: {
           borderColor: next.grid,
           borderVisible: false,
+          visible: false,
           scaleMargins: {
-            top: 0.16,
-            bottom: 0.16
+            top: 0.08,
+            bottom: 0.08
           }
         }
       });
@@ -166,20 +171,16 @@ export function PortfolioChart({
         secondsVisible: false
       },
       rightPriceScale: {
-        mode: chartScaleMode(points),
         borderVisible: false,
+        visible: false,
         scaleMargins: {
-          top: 0.16,
-          bottom: 0.16
+          top: 0.08,
+          bottom: 0.08
         }
       }
     });
 
-    const data: AreaData<Time>[] = points.map((point) => ({
-      time: point.time as Time,
-      value: point.value
-    }));
-    areaSeries.setData(data);
+    areaSeries.setData(chartData(points));
     chart.timeScale().fitContent();
   }, [activeRange, points]);
 
@@ -204,7 +205,7 @@ export function PortfolioChart({
         <p className="muted chart-empty">Add active positions with price history or realized PnL to build the chart.</p>
       ) : (
         <p className="subtle chart-footnote">
-          Estimated from active stock/crypto positions and dated realized PnL. Cash is excluded unless tracked as a position.
+          Estimated from portfolio inputs, market history, and dated realized PnL.
         </p>
       )}
     </section>

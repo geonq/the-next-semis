@@ -1,6 +1,6 @@
 import { OverviewClient } from "@/components/overview-client";
 import { formatCoingeckoParam, trackedCryptoIds, trackedTickers } from "@/lib/data";
-import { getPositions, getRealizedPnl, getWatchlist } from "@/lib/kv";
+import { getCashEntries, getPositions, getRealizedPnl, getWatchlist } from "@/lib/kv";
 import { fetchBitstampPerpQuotes, fetchCoinGeckoHistory, fetchCoinGeckoQuotes, fetchHistory, fetchQuotes } from "@/lib/market";
 import {
   buildPortfolioChartSeries,
@@ -36,7 +36,12 @@ async function fetchPortfolioChartHistories(positions: Position[]): Promise<Port
 }
 
 export default async function OverviewPage() {
-  const [positions, realizedPnl, watchlist] = await Promise.all([getPositions(), getRealizedPnl(), getWatchlist()]);
+  const [positions, realizedPnl, cashEntries, watchlist] = await Promise.all([
+    getPositions(),
+    getRealizedPnl(),
+    getCashEntries(),
+    getWatchlist()
+  ]);
   const tickers = trackedTickers(positions, watchlist);
   const cryptoIds = trackedCryptoIds(positions, watchlist);
   const coingeckoParam = formatCoingeckoParam(cryptoIds);
@@ -50,11 +55,13 @@ export default async function OverviewPage() {
     fetchPortfolioChartHistories(positions)
   ]);
   const quotes = { ...yahooQuotes, ...cgQuotes };
-  const chartSeries = buildPortfolioChartSeries({ positions, realizedPnl, histories: chartHistories });
+  const chartSeries = buildPortfolioChartSeries({ positions, realizedPnl, cashEntries, histories: chartHistories });
 
   return (
     <OverviewClient
       positions={positions}
+      realizedPnl={realizedPnl}
+      cashEntries={cashEntries}
       chartSeries={chartSeries}
       initialQuotes={quotes}
       initialPerpQuotes={initialPerpQuotes}

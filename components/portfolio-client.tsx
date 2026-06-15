@@ -6,8 +6,10 @@ import { CandlestickChart } from "iconoir-react";
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import { BITSTAMP_PERPS, findBitstampPerpByTicker } from "@/lib/perps";
 import {
+  accountSummary,
   enrichPositions,
   enrichRealizedPnl,
+  estimatedCashBalance,
   portfolioSummary,
   realizedPnlLeaders,
   realizedPnlSummary
@@ -15,6 +17,7 @@ import {
 import type {
   BitstampPerpQuote,
   BitstampPerpQuotesByMarket,
+  CashEntry,
   EnrichedPosition,
   EnrichedRealizedPnlEntry,
   Position,
@@ -56,6 +59,7 @@ function stakingLabel(position: Pick<Position, "assetClass" | "staked_amount" | 
 export function PortfolioClient({
   positions,
   realizedPnl,
+  cashEntries,
   initialQuotes,
   initialPerpQuotes,
   tickers,
@@ -65,6 +69,7 @@ export function PortfolioClient({
 }: {
   positions: Position[];
   realizedPnl: RealizedPnlEntry[];
+  cashEntries: CashEntry[];
   initialQuotes: QuotesByTicker;
   initialPerpQuotes: BitstampPerpQuotesByMarket;
   tickers: string[];
@@ -83,13 +88,16 @@ export function PortfolioClient({
   );
   const perpQuotes = useLivePerpQuotes(initialPerpQuotes, perpMarkets);
   const enriched = enrichPositions(positions, quotes, perpQuotes).sort((a, b) => (b.total_value ?? 0) - (a.total_value ?? 0));
-  const summary = portfolioSummary(enriched);
   const realizedEntries = enrichRealizedPnl(realizedPnl).sort((a, b) => b.closed_at.localeCompare(a.closed_at));
+  const summary = accountSummary(enriched, realizedEntries, cashEntries);
+  const positionsOnlySummary = portfolioSummary(enriched);
   const realizedSummary = realizedPnlSummary(realizedEntries);
   const biggestWinners = realizedPnlLeaders(realizedEntries, "winners");
   const biggestLosers = realizedPnlLeaders(realizedEntries, "losers");
+  const cashBalance = estimatedCashBalance(cashEntries, positions, realizedEntries);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [editingRealizedPnl, setEditingRealizedPnl] = useState<RealizedPnlEntry | null>(null);
+  const [editingCashEntry, setEditingCashEntry] = useState<CashEntry | null>(null);
 
   async function deletePosition(position: Position) {
     await fetch("/api/positions", {
@@ -102,6 +110,15 @@ export function PortfolioClient({
 
   async function deleteRealizedPnl(id: string) {
     await fetch("/api/realized-pnl", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id })
+    });
+    router.refresh();
+  }
+
+  async function deleteCashEntry(id: string) {
+    await fetch("/api/cash", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id })
@@ -125,6 +142,16 @@ export function PortfolioClient({
           </div>
         </div>
       </section>
+
+      {isAdmin ? (
+        <CashSection
+          entries={cashEntries}
+          cashBalance={cashBalance}
+          investedValue={positionsOnlySummary.total_value}
+          onEdit={(id) => setEditingCashEntry(cashEntries.find((entry) => entry.id === id) ?? null)}
+          onDelete={deleteCashEntry}
+        />
+      ) : null}
 
       <div className="m-pos-list">
         {enriched.map((position) => (
@@ -229,6 +256,19 @@ export function PortfolioClient({
         />
       ) : null}
 
+      {isAdmin && editingCashEntry ? (
+        <EditCashEntryForm
+          entry={editingCashEntry}
+          onCancel={() => setEditingCashEntry(null)}
+          onSaved={() => {
+            setEditingCashEntry(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+
+      {isAdmin ? <AddCashEntryForm onAdded={() => router.refresh()} /> : null}
+
       {isAdmin ? <AddPositionForm onAdded={() => router.refresh()} /> : null}
 
       <RealizedPnlSection
@@ -257,6 +297,69 @@ export function PortfolioClient({
 
       <Concentration enriched={enriched} watchlist={watchlist} positions={positions} realizedEntries={realizedEntries} />
     </div>
+  );
+}
+
+function CashSection({
+  entries,
+  cashBalance,
+  investedValue,
+  onEdit,
+  onDelete
+}: {
+  entries: CashEntry[];
+  cashBalance: number;
+  investedValue: number;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const sorted = entries.slice().sort((a, b) => b.date.localeCompare(a.date));
+
+  return (
+    <section className="hairline cash-section">
+      <div className="cash-header">
+        <div>
+          <p className="section-label">Private cash inputs</p>
+          <div className="cash-metrics">
+            <span className="ticker tabular">{fmtUsd(cashBalance)}</span>
+            <span className="muted tabular">Invested {fmtUsd(investedValue)}</span>
+          </div>
+        </div>
+        <p className="subtle cash-note">
+          Admin-only. Used for account-equity charting, not shown publicly as a metric.
+        </p>
+      </div>
+
+      {sorted.length > 0 ? (
+        <div className="cash-list">
+          {sorted.map((entry) => (
+            <div className="cash-row" key={entry.id}>
+              <div className="row-left">
+                <span className={`tabular ${signClass(entry.amount)}`}>{fmtSignedCashAmount(entry.amount, entry.currency)}</span>
+                <span className="subtle">
+                  {entry.currency} · {entry.date}
+                  {entry.amount_usd != null && entry.currency !== "USD" ? ` · ${fmtUsd(entry.amount_usd)}` : ""}
+                </span>
+                {entry.note ? <span className="subtle">{entry.note}</span> : null}
+              </div>
+              <span className="position-actions">
+                <button className="edit-btn" onClick={() => onEdit(entry.id)} type="button">Edit</button>
+                <button
+                  className="delete-btn"
+                  onClick={() => onDelete(entry.id)}
+                  type="button"
+                  aria-label={`Remove cash entry from ${entry.date}`}
+                >
+                  ✕
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="muted">No cash entries yet.</p>
+      )}
+    </section>
   );
 }
 
@@ -771,6 +874,40 @@ type PositionFormState = {
   bitstamp_market: string;
 };
 
+type CashFormState = {
+  amount: string;
+  currency: CashEntry["currency"];
+  date: string;
+  note: string;
+};
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+const emptyCashForm = (): CashFormState => ({
+  amount: "",
+  currency: "USD",
+  date: todayIso(),
+  note: ""
+});
+
+function cashFormFromEntry(entry: CashEntry): CashFormState {
+  return {
+    amount: String(entry.amount),
+    currency: entry.currency,
+    date: entry.date,
+    note: entry.note ?? ""
+  };
+}
+
+function cashPayload(form: CashFormState) {
+  return {
+    amount: Number(form.amount),
+    currency: form.currency,
+    date: form.date,
+    note: form.note || undefined
+  };
+}
+
 const emptyPositionForm: PositionFormState = {
   ticker: "",
   company: "",
@@ -937,6 +1074,16 @@ function fmtQuantity(value: number): string {
   });
 }
 
+function fmtSignedCashAmount(value: number, currency: CashEntry["currency"]): string {
+  const formatted = Math.abs(value).toLocaleString("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  return value >= 0 ? `+${formatted}` : `-${formatted}`;
+}
+
 function fmtFundingRate(value: number | null | undefined): string {
   if (value == null) return "—";
   if (value === 0) return "0%";
@@ -953,6 +1100,140 @@ function marginLabel(entry: EnrichedRealizedPnlEntry): string {
   const mode = entry.margin_mode === "shared" ? "shared" : "isolated";
   const leverage = entry.leverage ? `${entry.leverage.toLocaleString("en-US", { maximumFractionDigits: 2 })}x` : "spot";
   return `${fmtUsd(entry.return_basis)} ${mode} / ${leverage}`;
+}
+
+function AddCashEntryForm({ onAdded }: { onAdded: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState<CashFormState>(() => emptyCashForm());
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    const res = await fetch("/api/cash", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cashPayload(form))
+    });
+
+    if (res.ok) {
+      setForm(emptyCashForm());
+      setOpen(false);
+      onAdded();
+    } else {
+      const data = await res.json();
+      setError(data.error ?? "Failed to add cash entry.");
+    }
+  }
+
+  if (!open) {
+    return (
+      <button className="add-btn" onClick={() => setOpen(true)} type="button">
+        + Add cash flow
+      </button>
+    );
+  }
+
+  return (
+    <form className="add-form" onSubmit={handleSubmit}>
+      <p className="section-label">New cash flow</p>
+      <CashFormFields form={form} setForm={setForm} />
+      {error ? <p className="loss">{error}</p> : null}
+      <div className="add-actions">
+        <button className="add-btn" type="submit">Add</button>
+        <button className="cancel-btn" onClick={() => setOpen(false)} type="button">Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function EditCashEntryForm({
+  entry,
+  onSaved,
+  onCancel
+}: {
+  entry: CashEntry;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [error, setError] = useState("");
+  const [form, setForm] = useState<CashFormState>(() => cashFormFromEntry(entry));
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    const res = await fetch("/api/cash", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: entry.id, ...cashPayload(form) })
+    });
+
+    if (res.ok) {
+      onSaved();
+    } else {
+      const data = await res.json();
+      setError(data.error ?? "Failed to update cash entry.");
+    }
+  }
+
+  return (
+    <form className="add-form" onSubmit={handleSubmit}>
+      <p className="section-label">Edit cash flow</p>
+      <CashFormFields form={form} setForm={setForm} />
+      {error ? <p className="loss">{error}</p> : null}
+      <div className="add-actions">
+        <button className="add-btn" type="submit">Save</button>
+        <button className="cancel-btn" onClick={onCancel} type="button">Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function CashFormFields({
+  form,
+  setForm
+}: {
+  form: CashFormState;
+  setForm: Dispatch<SetStateAction<CashFormState>>;
+}) {
+  return (
+    <div className="add-fields">
+      <input
+        className="add-input"
+        placeholder="Amount"
+        required
+        type="number"
+        step="any"
+        value={form.amount}
+        onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+      />
+      <select
+        className="add-input"
+        value={form.currency}
+        onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value as CashEntry["currency"] }))}
+      >
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="GBP">GBP</option>
+        <option value="JPY">JPY</option>
+      </select>
+      <input
+        className="add-input"
+        required
+        type="date"
+        value={form.date}
+        onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+      />
+      <input
+        className="add-input"
+        placeholder="Note"
+        value={form.note}
+        onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+      />
+    </div>
+  );
 }
 
 function AddPositionForm({ onAdded }: { onAdded: () => void }) {

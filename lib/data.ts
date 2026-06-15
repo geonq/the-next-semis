@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import type { Position, RealizedPnlEntry, WatchlistEntry } from "./types";
+import type { CashEntry, Position, RealizedPnlEntry, WatchlistEntry } from "./types";
 
 export const positionSchema = z.object({
   ticker: z.string().min(1).transform((value) => value.toUpperCase()),
@@ -46,6 +46,17 @@ export const realizedPnlSchema = z.object({
   note: z.string().max(1000).optional()
 });
 
+export const cashEntryBaseSchema = z.object({
+  id: z.string().min(1),
+  amount: z.number().finite(),
+  amount_usd: z.number().finite().optional(),
+  currency: z.enum(["USD", "EUR", "GBP", "JPY"]),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  note: z.string().max(500).optional()
+});
+
+export const cashEntrySchema = cashEntryBaseSchema;
+
 export const watchlistSchema = z.object({
   ticker: z.string().min(1).transform((value) => value.toUpperCase()),
   company: z.string().min(1),
@@ -86,6 +97,19 @@ export async function loadRealizedPnl(): Promise<RealizedPnlEntry[]> {
     ...entry,
     side: entry.side ?? "long"
   }));
+}
+
+export async function loadCashEntries(): Promise<CashEntry[]> {
+  try {
+    return readJsonArray("cash.json", cashEntrySchema);
+  } catch {
+    return [];
+  }
+}
+
+export function parseCashEntries(data: unknown): CashEntry[] {
+  const parsed = z.array(cashEntrySchema).safeParse(data);
+  return parsed.success ? parsed.data : [];
 }
 
 export async function loadWatchlist(): Promise<WatchlistEntry[]> {

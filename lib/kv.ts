@@ -1,8 +1,18 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import type { Position, RealizedPnlEntry, ResearchDoc, SavedItem, WatchlistEntry } from "./types";
-import { loadPositions, loadRealizedPnl, loadThesis, loadWatchlist, parsePositionEntries, parseWatchlistEntries, realizedPnlSchema } from "./data";
+import type { CashEntry, Position, RealizedPnlEntry, ResearchDoc, SavedItem, WatchlistEntry } from "./types";
+import {
+  loadCashEntries,
+  loadPositions,
+  loadRealizedPnl,
+  loadThesis,
+  loadWatchlist,
+  parseCashEntries,
+  parsePositionEntries,
+  parseWatchlistEntries,
+  realizedPnlSchema
+} from "./data";
 
 const savedItemSchema = z.object({
   id: z.string().min(1),
@@ -62,6 +72,18 @@ export async function getRealizedPnl(): Promise<RealizedPnlEntry[]> {
   return loadRealizedPnl();
 }
 
+export async function getCashEntries(): Promise<CashEntry[]> {
+  const redis = getRedis();
+  if (redis) {
+    const data = await redis.get("cash");
+    if (data) return parseCashEntries(data);
+    const seed = await loadCashEntries();
+    await redis.set("cash", seed);
+    return seed;
+  }
+  return loadCashEntries();
+}
+
 export async function getWatchlist(): Promise<WatchlistEntry[]> {
   const redis = getRedis();
   if (redis) {
@@ -104,6 +126,15 @@ export async function setRealizedPnl(entries: RealizedPnlEntry[]): Promise<void>
     return;
   }
   await fs.writeFile(path.join(process.cwd(), "data", "realized_pnl.json"), JSON.stringify(entries, null, 2));
+}
+
+export async function setCashEntries(entries: CashEntry[]): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    await redis.set("cash", entries);
+    return;
+  }
+  await fs.writeFile(path.join(process.cwd(), "data", "cash.json"), JSON.stringify(entries, null, 2));
 }
 
 export async function setWatchlist(entries: WatchlistEntry[]): Promise<void> {

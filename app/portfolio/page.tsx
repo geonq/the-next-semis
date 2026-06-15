@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { PortfolioClient } from "@/components/portfolio-client";
 import { verifySession } from "@/lib/auth";
 import { formatCoingeckoParam, trackedCryptoIds, trackedTickers } from "@/lib/data";
-import { getPositions, getRealizedPnl, getWatchlist } from "@/lib/kv";
+import { getCashEntries, getPositions, getRealizedPnl, getWatchlist } from "@/lib/kv";
 import { fetchBitstampPerpQuotes, fetchCoinGeckoQuotes, fetchQuotes } from "@/lib/market";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,12 @@ export default async function PortfolioPage() {
   const token = cookieStore.get("session")?.value;
   const isAdmin = token ? await verifySession(token) : false;
 
-  const [positions, realizedPnl, watchlist] = await Promise.all([getPositions(), getRealizedPnl(), getWatchlist()]);
+  const [positions, realizedPnl, cashEntries, watchlist] = await Promise.all([
+    getPositions(),
+    getRealizedPnl(),
+    getCashEntries(),
+    getWatchlist()
+  ]);
   const tickers = trackedTickers(positions, watchlist);
   const cryptoIds = trackedCryptoIds(positions, watchlist);
   const coingeckoParam = formatCoingeckoParam(cryptoIds);
@@ -31,6 +36,7 @@ export default async function PortfolioPage() {
     <PortfolioClient
       positions={positions}
       realizedPnl={realizedPnl}
+      cashEntries={cashEntries}
       initialQuotes={quotes}
       initialPerpQuotes={initialPerpQuotes}
       tickers={tickers}
