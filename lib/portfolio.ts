@@ -193,6 +193,7 @@ export type PortfolioChartHistoryRange = "1d" | "5d" | "1mo" | "1y" | "max";
 export type PortfolioChartHistories = Partial<Record<PortfolioChartHistoryRange, Record<string, Candle[]>>>;
 
 const secondsPerDay = 24 * 60 * 60;
+const liveWindowSeconds = 90 * 60;
 
 function startOfUtcYear(timestamp: number): number {
   const date = new Date(timestamp * 1000);
@@ -200,7 +201,7 @@ function startOfUtcYear(timestamp: number): number {
 }
 
 function rangeStart(range: PortfolioChartRange, now: number): number {
-  if (range === "live") return now - secondsPerDay;
+  if (range === "live") return now - liveWindowSeconds;
   if (range === "1d") return now - secondsPerDay;
   if (range === "1w") return now - 7 * secondsPerDay;
   if (range === "1month") return now - 30 * secondsPerDay;
@@ -279,8 +280,6 @@ export function buildPortfolioChartSeries({
     portfolioChartRanges.map((range) => {
       const source = historySourceForPortfolioRange(range);
       const sourceHistories = histories[source] ?? {};
-      const start = rangeStart(range, now);
-      const baselineTime = start > 0 ? start : undefined;
       const positionsWithEntryTime = positions
         .filter(isHistoricalPosition)
         .map((position) => ({
@@ -288,25 +287,35 @@ export function buildPortfolioChartSeries({
           entryTime: position.entry_date ? dateToUtcSeconds(position.entry_date) : null,
           history: (sourceHistories[position.ticker] ?? []).filter((candle) => candle.time <= now)
         }));
+      const latestHistoryTime = positionsWithEntryTime.reduce<number | null>((latest, { history }) => {
+        const last = history.at(-1)?.time ?? null;
+        if (last == null) return latest;
+        return latest == null ? last : Math.max(latest, last);
+      }, null);
+      const rangeEnd = range === "live" && latestHistoryTime != null ? latestHistoryTime : now;
+      const start = range === "live" && latestHistoryTime != null
+        ? Math.max(0, latestHistoryTime - liveWindowSeconds)
+        : rangeStart(range, now);
+      const baselineTime = start > 0 ? start : undefined;
 
       const times = new Set<number>();
       if (baselineTime != null) times.add(baselineTime);
 
       for (const { history } of positionsWithEntryTime) {
         for (const candle of history) {
-          if (candle.time >= start && candle.time <= now) times.add(candle.time);
+          if (candle.time >= start && candle.time <= rangeEnd) times.add(candle.time);
         }
       }
       for (const entry of realizedEntries) {
-        if (entry.closedAt >= start && entry.closedAt <= now) times.add(entry.closedAt);
+        if (entry.closedAt >= start && entry.closedAt <= rangeEnd) times.add(entry.closedAt);
       }
       for (const entry of cashFlows) {
-        if (entry.time >= start && entry.time <= now) {
+        if (entry.time >= start && entry.time <= rangeEnd) {
           if (entry.time - 1 >= start) times.add(entry.time - 1);
           times.add(entry.time);
         }
       }
-      times.add(now);
+      times.add(rangeEnd);
 
       const sortedTimes = Array.from(times).sort((a, b) => a - b);
       const lastCloseByTicker = new Map<string, number>();

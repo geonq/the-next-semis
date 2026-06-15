@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import { accountSummary, enrichPositions, enrichRealizedPnl, movers } from "@/lib/portfolio";
 import type {
@@ -10,7 +11,7 @@ import type {
   QuotesByTicker,
   RealizedPnlEntry
 } from "@/lib/types";
-import { PortfolioChart } from "./portfolio-chart";
+import { PortfolioChart, type PortfolioChartHover } from "./portfolio-chart";
 import { useLiveQuotes } from "./use-live-quotes";
 import { useLivePerpQuotes } from "./use-live-perp-quotes";
 
@@ -43,25 +44,30 @@ export function OverviewClient({
   const summary = accountSummary(enriched, realizedEntries, cashEntries);
   const topGainers = movers(enriched, "desc");
   const topLosers = movers(enriched, "asc");
+  const [chartHover, setChartHover] = useState<PortfolioChartHover>(null);
+  const displayedValue = chartHover?.point.value ?? summary.total_value;
+  const displayedChange = chartHover ? chartHover.change : summary.day_change_dollars;
+  const displayedChangePct = chartHover ? chartHover.changePct : summary.day_change_percent;
+  const displayedLabel = chartHover ? chartHover.label : "today";
 
   return (
     <div className="stack-xl">
       <section>
         <div className="summary-line">
-          <span className="hero-number tabular">{fmtUsd(summary.total_value)}</span>
+          <RollingPortfolioValue value={displayedValue} />
           <div className="summary-delta">
-            <span className={`tabular ${signClass(summary.day_change_dollars)}`}>
-              {fmtSignedUsd(summary.day_change_dollars)}
+            <span className={`tabular ${signClass(displayedChange)}`}>
+              {fmtSignedUsd(displayedChange)}
             </span>
-            <span className={`tabular ${signClass(summary.day_change_percent)}`}>
-              {fmtSignedPct(summary.day_change_percent)}
+            <span className={`tabular ${signClass(displayedChangePct)}`}>
+              {fmtSignedPct(displayedChangePct)}
             </span>
-            <span className="muted">today</span>
+            <span className="muted">{displayedLabel}</span>
           </div>
         </div>
       </section>
 
-      <PortfolioChart seriesByRange={chartSeries} totalValue={summary.total_value} />
+      <PortfolioChart seriesByRange={chartSeries} onHoverChange={setChartHover} />
 
       <section className="hairline">
         <div className="two-col">
@@ -80,6 +86,24 @@ export function OverviewClient({
         </div>
       </section>
     </div>
+  );
+}
+
+function RollingPortfolioValue({ value }: { value: number }) {
+  const previous = useRef(value);
+  const [direction, setDirection] = useState<"roll-up" | "roll-down">("roll-up");
+  const valueKey = Math.round(value * 100);
+
+  useEffect(() => {
+    if (value === previous.current) return;
+    setDirection(value > previous.current ? "roll-up" : "roll-down");
+    previous.current = value;
+  }, [value]);
+
+  return (
+    <span key={valueKey} className={`hero-number tabular portfolio-hero-number ${direction}`}>
+      {fmtUsd(value)}
+    </span>
   );
 }
 

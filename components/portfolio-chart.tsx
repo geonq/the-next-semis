@@ -6,9 +6,10 @@ import {
   createChart,
   type AreaData,
   type ISeriesApi,
+  type MouseEventParams,
   type Time
 } from "lightweight-charts";
-import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
+import { fmtUsd } from "@/lib/format";
 import type { PortfolioChartPoint, PortfolioChartRange, PortfolioChartSeriesByRange } from "@/lib/types";
 import { SegmentedTabs } from "./segmented-tabs";
 
@@ -23,6 +24,13 @@ const chartOptions: Array<{ label: string; range: PortfolioChartRange }> = [
 
 const portfolioChartBlue = "#2563eb";
 
+export type PortfolioChartHover = {
+  point: PortfolioChartPoint;
+  change: number | null;
+  changePct: number | null;
+  label: string;
+} | null;
+
 function readThemeColors() {
   const style = getComputedStyle(document.documentElement);
   const cssVar = (name: string) => style.getPropertyValue(name).trim();
@@ -34,14 +42,6 @@ function readThemeColors() {
   };
 }
 
-function rangeStats(points: PortfolioChartPoint[]) {
-  const first = points[0]?.value ?? null;
-  const last = points.at(-1)?.value ?? null;
-  const change = first != null && last != null ? last - first : null;
-  const changePct = first != null && first !== 0 && change != null ? (change / first) * 100 : null;
-  return { first, last, change, changePct };
-}
-
 function chartData(points: PortfolioChartPoint[]): AreaData<Time>[] {
   const base = points.find((point) => point.value !== 0)?.value ?? 0;
   return points.map((point) => ({
@@ -50,20 +50,31 @@ function chartData(points: PortfolioChartPoint[]): AreaData<Time>[] {
   }));
 }
 
+function hoverLabel(time: number, range: PortfolioChartRange): string {
+  const date = new Date(time * 1000);
+  if (range === "live" || range === "1d") {
+    return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+  }
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 export function PortfolioChart({
   seriesByRange,
-  totalValue
+  onHoverChange
 }: {
   seriesByRange: PortfolioChartSeriesByRange;
-  totalValue: number;
+  onHoverChange?: (hover: PortfolioChartHover) => void;
 }) {
   const [activeLabel, setActiveLabel] = useState("live");
   const activeRange = chartOptions.find((option) => option.label === activeLabel)?.range ?? "live";
   const points = useMemo(() => seriesByRange[activeRange] ?? [], [activeRange, seriesByRange]);
-  const stats = useMemo(() => rangeStats(points), [points]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const pointsByTimeRef = useRef<Map<number, PortfolioChartPoint>>(new Map());
+  const rangeFirstValueRef = useRef<number | null>(null);
+  const activeRangeRef = useRef<PortfolioChartRange>(activeRange);
+  const [tooltip, setTooltip] = useState<{ x: number; label: string; point: PortfolioChartPoint } | null>(null);
 
   function applySeriesColor(color: string) {
     seriesRef.current?.applyOptions({
@@ -120,6 +131,33 @@ export function PortfolioChart({
     chartRef.current = chart;
     seriesRef.current = areaSeries;
 
+    const handleCrosshairMove = (param: MouseEventParams<Time>) => {
+      const point = param.point;
+      const time = typeof param.time === "number" ? param.time : null;
+      if (!point || time == null || point.x < 0 || point.x > container.clientWidth || point.y < 0 || point.y > container.clientHeight) {
+        setTooltip(null);
+        onHoverChange?.(null);
+        return;
+      }
+
+      const hovered = pointsByTimeRef.current.get(time);
+      if (!hovered) {
+        setTooltip(null);
+        onHoverChange?.(null);
+        return;
+      }
+
+      const first = rangeFirstValueRef.current;
+      const change = first != null ? hovered.value - first : null;
+      const changePct = first != null && first !== 0 && change != null ? (change / first) * 100 : null;
+      const label = hoverLabel(hovered.time, activeRangeRef.current);
+      const x = Math.min(Math.max(point.x, 74), Math.max(container.clientWidth - 74, 74));
+
+      setTooltip({ x, label, point: hovered });
+      onHoverChange?.({ point: hovered, change, changePct, label });
+    };
+    chart.subscribeCrosshairMove(handleCrosshairMove);
+
     const resizeObserver = new ResizeObserver(() => {
       chart.applyOptions({ width: container.clientWidth });
     });
@@ -151,6 +189,7 @@ export function PortfolioChart({
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
     return () => {
+      chart.unsubscribeCrosshairMove(handleCrosshairMove);
       resizeObserver.disconnect();
       themeObserver.disconnect();
       chart.remove();
@@ -163,6 +202,11 @@ export function PortfolioChart({
     const chart = chartRef.current;
     const areaSeries = seriesRef.current;
     if (!chart || !areaSeries) return;
+    pointsByTimeRef.current = new Map(points.map((point) => [point.time, point]));
+    rangeFirstValueRef.current = points[0]?.value ?? null;
+    activeRangeRef.current = activeRange;
+    setTooltip(null);
+    onHoverChange?.(null);
 
     applySeriesColor(portfolioChartBlue);
     chart.applyOptions({
@@ -185,22 +229,22 @@ export function PortfolioChart({
   }, [activeRange, points]);
 
   const hasData = points.length > 0;
-  const endingValue = stats.last ?? totalValue;
 
   return (
     <section className="portfolio-chart-section">
       <div className="portfolio-chart-header">
-        <div>
-          <p className="section-label">Portfolio chart</p>
-          <div className="summary-delta portfolio-chart-delta">
-            <span className="ticker tabular">{fmtUsd(endingValue)}</span>
-            <span className={`tabular ${signClass(stats.change)}`}>{fmtSignedUsd(stats.change)}</span>
-            <span className={`tabular ${signClass(stats.changePct)}`}>{fmtSignedPct(stats.changePct)}</span>
-          </div>
-        </div>
+        <p className="section-label">Portfolio chart</p>
         <SegmentedTabs options={chartOptions.map((option) => option.label)} value={activeLabel} onChange={setActiveLabel} />
       </div>
-      <div className="chart portfolio-chart" ref={containerRef} aria-label="Portfolio value chart" />
+      <div className="portfolio-chart-wrap">
+        <div className="chart portfolio-chart" ref={containerRef} aria-label="Portfolio value chart" />
+        {tooltip ? (
+          <div className="portfolio-chart-tooltip" style={{ left: `${tooltip.x}px` }}>
+            <span className="tabular">{fmtUsd(tooltip.point.value)}</span>
+            <span>{tooltip.label}</span>
+          </div>
+        ) : null}
+      </div>
       {!hasData ? (
         <p className="muted chart-empty">Add active positions with price history or realized PnL to build the chart.</p>
       ) : (

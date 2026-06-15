@@ -181,6 +181,41 @@ ol {
   line-height: 1.05;
 }
 
+.portfolio-hero-number {
+  display: inline-block;
+  transform-origin: center;
+}
+
+.portfolio-hero-number.roll-up {
+  animation: portfolio-value-roll-up 220ms ease-out;
+}
+
+.portfolio-hero-number.roll-down {
+  animation: portfolio-value-roll-down 220ms ease-out;
+}
+
+@keyframes portfolio-value-roll-up {
+  from {
+    opacity: 0.35;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes portfolio-value-roll-down {
+  from {
+    opacity: 0.35;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .summary-line {
   align-items: baseline;
   display: flex;
@@ -866,6 +901,36 @@ ol {
 
 .portfolio-chart {
   height: 340px;
+}
+
+.portfolio-chart-wrap {
+  position: relative;
+}
+
+.portfolio-chart-tooltip {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-bg) 88%, var(--color-fg) 12%);
+  border: 1px solid var(--color-grid);
+  border-radius: 999px;
+  box-shadow: 0 10px 30px color-mix(in srgb, #000 26%, transparent);
+  color: var(--color-fg);
+  display: flex;
+  font-size: 12px;
+  font-weight: 650;
+  gap: 8px;
+  left: 0;
+  padding: 7px 10px;
+  pointer-events: none;
+  position: absolute;
+  top: 12px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 3;
+}
+
+.portfolio-chart-tooltip span:last-child {
+  color: var(--color-neutral);
+  font-weight: 600;
 }
 
 .chart-footnote,

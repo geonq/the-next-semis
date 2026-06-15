@@ -250,6 +250,33 @@ describe("portfolio calculations", () => {
     expect(series.all.some((point) => point.time === Date.UTC(2026, 0, 5) / 1000 && point.value === 1110)).toBe(true);
   });
 
+  it("uses a short latest-intraday window for live instead of duplicating the full 1d range", () => {
+    const first = Date.UTC(2026, 0, 12, 14) / 1000;
+    const middle = Date.UTC(2026, 0, 12, 15, 30) / 1000;
+    const last = Date.UTC(2026, 0, 12, 16) / 1000;
+    const series = buildPortfolioChartSeries({
+      positions: [
+        { ticker: "NVDA", company: "NVIDIA", shares: 1, average_cost: 100, currency: "USD", sector: "Semis" }
+      ],
+      realizedPnl: [],
+      now: Date.UTC(2026, 0, 12, 21) / 1000,
+      histories: {
+        "1d": {
+          NVDA: [
+            { time: first, open: 100, high: 100, low: 100, close: 100 },
+            { time: middle, open: 105, high: 105, low: 105, close: 105 },
+            { time: last, open: 110, high: 110, low: 110, close: 110 }
+          ]
+        }
+      }
+    });
+
+    expect(series.live.some((point) => point.time === first)).toBe(false);
+    expect(series.live.some((point) => point.time === middle)).toBe(true);
+    expect(series.live.at(-1)?.time).toBe(last);
+    expect(series["1d"].some((point) => point.time === first)).toBe(true);
+  });
+
   it("does not count active holdings before their entry date", () => {
     const series = buildPortfolioChartSeries({
       positions: [
