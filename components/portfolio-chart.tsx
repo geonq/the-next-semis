@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AreaSeries, createChart, type AreaData, type ISeriesApi, type Time } from "lightweight-charts";
+import {
+  AreaSeries,
+  PriceScaleMode,
+  createChart,
+  type AreaData,
+  type ISeriesApi,
+  type Time
+} from "lightweight-charts";
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import type { PortfolioChartPoint, PortfolioChartRange, PortfolioChartSeriesByRange } from "@/lib/types";
 import { SegmentedTabs } from "./segmented-tabs";
@@ -34,6 +41,10 @@ function rangeStats(points: PortfolioChartPoint[]) {
   const change = first != null && last != null ? last - first : null;
   const changePct = first != null && first !== 0 && change != null ? (change / first) * 100 : null;
   return { first, last, change, changePct };
+}
+
+function chartScaleMode(points: PortfolioChartPoint[]): PriceScaleMode {
+  return points.every((point) => point.value > 0) ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal;
 }
 
 export function PortfolioChart({
@@ -83,7 +94,14 @@ export function PortfolioChart({
         secondsVisible: false,
         lockVisibleTimeRangeOnResize: true
       },
-      rightPriceScale: { borderColor: colors.grid }
+      rightPriceScale: {
+        borderColor: colors.grid,
+        borderVisible: false,
+        scaleMargins: {
+          top: 0.16,
+          bottom: 0.16
+        }
+      }
     });
 
     const areaSeries = chart.addSeries(AreaSeries, {
@@ -114,7 +132,14 @@ export function PortfolioChart({
           vertLines: { color: next.grid },
           horzLines: { color: next.grid }
         },
-        rightPriceScale: { borderColor: next.grid }
+        rightPriceScale: {
+          borderColor: next.grid,
+          borderVisible: false,
+          scaleMargins: {
+            top: 0.16,
+            bottom: 0.16
+          }
+        }
       });
       applySeriesColor(portfolioChartBlue);
     });
@@ -139,6 +164,14 @@ export function PortfolioChart({
       timeScale: {
         timeVisible: activeRange === "live" || activeRange === "1d",
         secondsVisible: false
+      },
+      rightPriceScale: {
+        mode: chartScaleMode(points),
+        borderVisible: false,
+        scaleMargins: {
+          top: 0.16,
+          bottom: 0.16
+        }
       }
     });
 
