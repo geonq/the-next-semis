@@ -128,6 +128,17 @@ export type PortfolioSummary = {
   day_change_percent: number;
 };
 
+export type PortfolioChartRange = "live" | "1d" | "1w" | "1month" | "ytd" | "all";
+
+export type PortfolioChartPoint = {
+  time: number;
+  value: number;
+  active_value: number;
+  realized_pnl: number;
+};
+
+export type PortfolioChartSeriesByRange = Record<PortfolioChartRange, PortfolioChartPoint[]>;
+
 export type RealizedPnlSummary = {
   total_realized_pnl: number;
   winners: number;

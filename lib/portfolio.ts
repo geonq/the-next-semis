@@ -1,7 +1,10 @@
 import type {
   BitstampPerpQuotesByMarket,
+  Candle,
   EnrichedPosition,
   EnrichedRealizedPnlEntry,
+  PortfolioChartRange,
+  PortfolioChartSeriesByRange,
   PortfolioSummary,
   Position,
   QuotesByTicker,
@@ -157,4 +160,133 @@ export function realizedPnlLeaders(
       direction === "winners" ? b.realized_pnl - a.realized_pnl : a.realized_pnl - b.realized_pnl
     )
     .slice(0, limit);
+}
+
+export const portfolioChartRanges = ["live", "1d", "1w", "1month", "ytd", "all"] as const;
+
+export type PortfolioChartHistoryRange = "1d" | "5d" | "1mo" | "1y" | "max";
+
+export type PortfolioChartHistories = Partial<Record<PortfolioChartHistoryRange, Record<string, Candle[]>>>;
+
+const secondsPerDay = 24 * 60 * 60;
+
+function startOfUtcYear(timestamp: number): number {
+  const date = new Date(timestamp * 1000);
+  return Date.UTC(date.getUTCFullYear(), 0, 1) / 1000;
+}
+
+function rangeStart(range: PortfolioChartRange, now: number): number {
+  if (range === "live") return now - secondsPerDay;
+  if (range === "1d") return now - secondsPerDay;
+  if (range === "1w") return now - 7 * secondsPerDay;
+  if (range === "1month") return now - 30 * secondsPerDay;
+  if (range === "ytd") return startOfUtcYear(now);
+  return 0;
+}
+
+export function historySourceForPortfolioRange(range: PortfolioChartRange): PortfolioChartHistoryRange {
+  if (range === "live" || range === "1d") return "1d";
+  if (range === "1w") return "5d";
+  if (range === "1month") return "1mo";
+  if (range === "ytd") return "1y";
+  return "max";
+}
+
+function dateToUtcSeconds(date: string): number | null {
+  const parsed = Date.parse(`${date}T00:00:00Z`);
+  return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : null;
+}
+
+function isHistoricalPosition(position: Position): boolean {
+  return position.assetClass !== "perp" && position.shares > 0;
+}
+
+export function buildPortfolioChartSeries({
+  positions,
+  realizedPnl,
+  histories,
+  now = Math.floor(Date.now() / 1000)
+}: {
+  positions: Position[];
+  realizedPnl: RealizedPnlEntry[];
+  histories: PortfolioChartHistories;
+  now?: number;
+}): PortfolioChartSeriesByRange {
+  const realizedEntries = enrichRealizedPnl(realizedPnl)
+    .map((entry) => ({
+      closedAt: dateToUtcSeconds(entry.closed_at),
+      value: entry.realized_pnl
+    }))
+    .filter((entry): entry is { closedAt: number; value: number } => entry.closedAt != null)
+    .sort((a, b) => a.closedAt - b.closedAt);
+
+  const series = Object.fromEntries(
+    portfolioChartRanges.map((range) => {
+      const source = historySourceForPortfolioRange(range);
+      const sourceHistories = histories[source] ?? {};
+      const start = rangeStart(range, now);
+      const baselineTime = start > 0 ? start : undefined;
+      const positionsWithEntryTime = positions
+        .filter(isHistoricalPosition)
+        .map((position) => ({
+          position,
+          entryTime: position.entry_date ? dateToUtcSeconds(position.entry_date) : null,
+          history: (sourceHistories[position.ticker] ?? []).filter((candle) => candle.time <= now)
+        }));
+
+      const times = new Set<number>();
+      if (baselineTime != null) times.add(baselineTime);
+
+      for (const { history } of positionsWithEntryTime) {
+        for (const candle of history) {
+          if (candle.time >= start && candle.time <= now) times.add(candle.time);
+        }
+      }
+      for (const entry of realizedEntries) {
+        if (entry.closedAt >= start && entry.closedAt <= now) times.add(entry.closedAt);
+      }
+
+      const sortedTimes = Array.from(times).sort((a, b) => a - b);
+      const lastCloseByTicker = new Map<string, number>();
+      const historyIndexByTicker = new Map<string, number>();
+      let realizedIndex = 0;
+      let cumulativeRealized = 0;
+
+      while (realizedIndex < realizedEntries.length && realizedEntries[realizedIndex].closedAt < start) {
+        cumulativeRealized += realizedEntries[realizedIndex].value;
+        realizedIndex += 1;
+      }
+
+      return [
+        range,
+        sortedTimes.flatMap((time) => {
+          while (realizedIndex < realizedEntries.length && realizedEntries[realizedIndex].closedAt <= time) {
+            cumulativeRealized += realizedEntries[realizedIndex].value;
+            realizedIndex += 1;
+          }
+
+          let activeValue = 0;
+          for (const { position, entryTime, history } of positionsWithEntryTime) {
+            let index = historyIndexByTicker.get(position.ticker) ?? 0;
+            while (index < history.length && history[index].time <= time) {
+              lastCloseByTicker.set(position.ticker, history[index].close);
+              index += 1;
+            }
+            historyIndexByTicker.set(position.ticker, index);
+
+            if (entryTime != null && time < entryTime) continue;
+            const close = lastCloseByTicker.get(position.ticker);
+            if (close == null) continue;
+            activeValue += position.shares * close;
+          }
+
+          const value = activeValue + cumulativeRealized;
+          if (value === 0) return [];
+          return [{ time, value, active_value: activeValue, realized_pnl: cumulativeRealized }];
+        })
+      ];
+    })
+  );
+
+  return series as PortfolioChartSeriesByRange;
 }

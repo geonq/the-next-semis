@@ -842,6 +842,38 @@ ol {
   width: 100%;
 }
 
+.portfolio-chart-section {
+  display: grid;
+  gap: 12px;
+}
+
+.portfolio-chart-header {
+  align-items: flex-end;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.portfolio-chart-header .segmented {
+  flex: 0 1 430px;
+  min-width: 0;
+}
+
+.portfolio-chart-delta {
+  margin-top: 6px;
+}
+
+.portfolio-chart {
+  height: 340px;
+}
+
+.chart-footnote,
+.chart-empty {
+  font-size: 12px;
+  margin: 0;
+}
+
 .news-panel {
   border-top: 1px solid var(--color-grid);
   padding-top: 32px;
@@ -2022,6 +2054,27 @@ ol {
 
   .price-block {
     text-align: left;
+  }
+
+  .portfolio-chart-header {
+    align-items: stretch;
+    display: grid;
+    gap: 12px;
+  }
+
+  .portfolio-chart-header .segmented {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .portfolio-chart-header .segmented-option {
+    font-size: 11px;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .portfolio-chart {
+    height: 300px;
   }
 
   .table-wrap {

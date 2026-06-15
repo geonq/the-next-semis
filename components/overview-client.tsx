@@ -2,18 +2,21 @@
 
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import { enrichPositions, movers, portfolioSummary } from "@/lib/portfolio";
-import type { BitstampPerpQuotesByMarket, Position, QuotesByTicker } from "@/lib/types";
+import type { BitstampPerpQuotesByMarket, PortfolioChartSeriesByRange, Position, QuotesByTicker } from "@/lib/types";
+import { PortfolioChart } from "./portfolio-chart";
 import { useLiveQuotes } from "./use-live-quotes";
 import { useLivePerpQuotes } from "./use-live-perp-quotes";
 
 export function OverviewClient({
   positions,
+  chartSeries,
   initialQuotes,
   initialPerpQuotes,
   tickers,
   coingeckoParam
 }: {
   positions: Position[];
+  chartSeries: PortfolioChartSeriesByRange;
   initialQuotes: QuotesByTicker;
   initialPerpQuotes: BitstampPerpQuotesByMarket;
   tickers: string[];
@@ -45,6 +48,8 @@ export function OverviewClient({
           </div>
         </div>
       </section>
+
+      <PortfolioChart seriesByRange={chartSeries} totalValue={summary.total_value} />
 
       <section className="hairline">
         <div className="two-col">

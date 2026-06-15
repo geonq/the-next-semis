@@ -520,12 +520,13 @@ export async function fetchCoinGeckoHistory(id: string, range = "1mo"): Promise<
   }
 }
 
-function coingeckoDaysFor(range: string): number {
+function coingeckoDaysFor(range: string): number | "max" {
   if (range === "1d") return 1;
   if (range === "5d") return 7;
   if (range === "1mo") return 30;
   if (range === "3mo") return 90;
   if (range === "6mo") return 180;
+  if (range === "max") return "max";
   return 365;
 }
 

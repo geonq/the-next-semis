@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPortfolioChartSeries,
   enrichPositions,
   enrichRealizedPnl,
+  historySourceForPortfolioRange,
   movers,
   portfolioSummary,
   realizedPnlLeaders,
@@ -159,5 +161,66 @@ describe("portfolio calculations", () => {
     expect(summary.average_loser).toBe(-50);
     expect(realizedPnlLeaders(enriched, "winners").map((entry) => entry.id)).toEqual(["short-win", "win-1"]);
     expect(realizedPnlLeaders(enriched, "losers").map((entry) => entry.id)).toEqual(["loss-1"]);
+  });
+
+  it("maps portfolio chart ranges to bounded history sources", () => {
+    expect(historySourceForPortfolioRange("live")).toBe("1d");
+    expect(historySourceForPortfolioRange("1d")).toBe("1d");
+    expect(historySourceForPortfolioRange("1w")).toBe("5d");
+    expect(historySourceForPortfolioRange("1month")).toBe("1mo");
+    expect(historySourceForPortfolioRange("ytd")).toBe("1y");
+    expect(historySourceForPortfolioRange("all")).toBe("max");
+  });
+
+  it("builds a portfolio chart from active holdings plus cumulative realized PnL", () => {
+    const chartPositions: Position[] = [
+      { ticker: "NVDA", company: "NVIDIA", shares: 2, average_cost: 100, entry_date: "2026-01-02", currency: "USD", sector: "Semis" },
+      { ticker: "AMD", company: "AMD", shares: 1, average_cost: 80, entry_date: "2026-01-04", currency: "USD", sector: "Semis" }
+    ];
+    const series = buildPortfolioChartSeries({
+      positions: chartPositions,
+      realizedPnl,
+      now: Date.UTC(2026, 0, 12, 12) / 1000,
+      histories: {
+        max: {
+          NVDA: [
+            { time: Date.UTC(2026, 0, 1) / 1000, open: 100, high: 100, low: 100, close: 100 },
+            { time: Date.UTC(2026, 0, 10) / 1000, open: 130, high: 130, low: 130, close: 130 },
+            { time: Date.UTC(2026, 0, 12) / 1000, open: 140, high: 140, low: 140, close: 140 }
+          ],
+          AMD: [
+            { time: Date.UTC(2026, 0, 3) / 1000, open: 80, high: 80, low: 80, close: 80 },
+            { time: Date.UTC(2026, 0, 11) / 1000, open: 70, high: 70, low: 70, close: 70 },
+            { time: Date.UTC(2026, 0, 12) / 1000, open: 75, high: 75, low: 75, close: 75 }
+          ]
+        }
+      }
+    });
+
+    expect(series.all.at(-1)).toMatchObject({
+      value: 5590,
+      active_value: 355,
+      realized_pnl: 5235
+    });
+  });
+
+  it("does not count active holdings before their entry date", () => {
+    const series = buildPortfolioChartSeries({
+      positions: [
+        { ticker: "NVDA", company: "NVIDIA", shares: 2, average_cost: 100, entry_date: "2026-01-10", currency: "USD", sector: "Semis" }
+      ],
+      realizedPnl: [],
+      now: Date.UTC(2026, 0, 12, 12) / 1000,
+      histories: {
+        max: {
+          NVDA: [
+            { time: Date.UTC(2026, 0, 9) / 1000, open: 100, high: 100, low: 100, close: 100 },
+            { time: Date.UTC(2026, 0, 10) / 1000, open: 120, high: 120, low: 120, close: 120 }
+          ]
+        }
+      }
+    });
+
+    expect(series.all).toEqual([{ time: Date.UTC(2026, 0, 10) / 1000, value: 240, active_value: 240, realized_pnl: 0 }]);
   });
 });
