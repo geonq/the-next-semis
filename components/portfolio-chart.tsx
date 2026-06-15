@@ -15,7 +15,6 @@ import { SegmentedTabs } from "./segmented-tabs";
 import { IntradayChart } from "./intraday-chart";
 
 const chartOptions: Array<{ label: string; range: PortfolioChartRange }> = [
-  { label: "live", range: "live" },
   { label: "1d", range: "1d" },
   { label: "1w", range: "1w" },
   { label: "1month", range: "1month" },
@@ -52,7 +51,7 @@ function chartData(points: PortfolioChartPoint[]): AreaData<Time>[] {
 
 function hoverLabel(time: number, range: PortfolioChartRange): string {
   const date = new Date(time * 1000);
-  if (range === "live" || range === "1d") {
+  if (range === "1d") {
     return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
   }
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -65,9 +64,9 @@ export function PortfolioChart({
   seriesByRange: PortfolioChartSeriesByRange;
   onHoverChange?: (hover: PortfolioChartHover) => void;
 }) {
-  const [activeLabel, setActiveLabel] = useState("live");
-  const activeRange = chartOptions.find((option) => option.label === activeLabel)?.range ?? "live";
-  const isIntraday = activeRange === "live" || activeRange === "1d";
+  const [activeLabel, setActiveLabel] = useState("1d");
+  const activeRange = chartOptions.find((option) => option.label === activeLabel)?.range ?? "1d";
+  const isIntraday = activeRange === "1d";
   const points = useMemo(() => seriesByRange[activeRange] ?? [], [activeRange, seriesByRange]);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -207,7 +206,7 @@ export function PortfolioChart({
         <SegmentedTabs options={chartOptions.map((option) => option.label)} value={activeLabel} onChange={setActiveLabel} />
       </div>
       <div className="portfolio-chart-wrap" ref={wrapRef}>
-        {isIntraday ? (
+        {isIntraday && (
           <IntradayChart
             points={points}
             color={portfolioChartBlue}
@@ -224,9 +223,14 @@ export function PortfolioChart({
               onHoverChange?.({ point: info.point, change, changePct, label });
             }}
           />
-        ) : (
-          <div className="chart portfolio-chart" ref={containerRef} aria-label="Portfolio value chart" />
         )}
+        {/* Always in DOM so TradingView initialises on mount; hidden while viewing 1d */}
+        <div
+          className="chart portfolio-chart"
+          ref={containerRef}
+          aria-label="Portfolio value chart"
+          style={isIntraday ? { display: "none" } : undefined}
+        />
         {tooltip ? (
           <div className="portfolio-chart-tooltip" style={{ left: `${tooltip.x}px` }}>
             <span className="tabular">{fmtUsd(tooltip.point.value)}</span>

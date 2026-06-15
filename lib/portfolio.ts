@@ -186,14 +186,13 @@ export function realizedPnlLeaders(
     .slice(0, limit);
 }
 
-export const portfolioChartRanges = ["live", "1d", "1w", "1month", "ytd", "all"] as const;
+export const portfolioChartRanges = ["1d", "1w", "1month", "ytd", "all"] as const;
 
 export type PortfolioChartHistoryRange = "1d" | "5d" | "1mo" | "1y" | "max";
 
 export type PortfolioChartHistories = Partial<Record<PortfolioChartHistoryRange, Record<string, Candle[]>>>;
 
 const secondsPerDay = 24 * 60 * 60;
-const liveWindowSeconds = 90 * 60;
 
 function startOfUtcYear(timestamp: number): number {
   const date = new Date(timestamp * 1000);
@@ -201,7 +200,6 @@ function startOfUtcYear(timestamp: number): number {
 }
 
 function rangeStart(range: PortfolioChartRange, now: number): number {
-  if (range === "live") return now - liveWindowSeconds;
   if (range === "1d") return now - secondsPerDay;
   if (range === "1w") return now - 7 * secondsPerDay;
   if (range === "1month") return now - 30 * secondsPerDay;
@@ -210,7 +208,7 @@ function rangeStart(range: PortfolioChartRange, now: number): number {
 }
 
 export function historySourceForPortfolioRange(range: PortfolioChartRange): PortfolioChartHistoryRange {
-  if (range === "live" || range === "1d") return "1d";
+  if (range === "1d") return "1d";
   if (range === "1w") return "5d";
   if (range === "1month") return "1mo";
   if (range === "ytd") return "1y";
@@ -287,27 +285,19 @@ export function buildPortfolioChartSeries({
           entryTime: position.entry_date ? dateToUtcSeconds(position.entry_date) : null,
           history: (sourceHistories[position.ticker] ?? []).filter((candle) => candle.time <= now)
         }));
-      // latest candle across all positions — used for live/1d range ends
-      const latestHistoryTime = positionsWithEntryTime.reduce<number | null>((latest, { history }) => {
-        const last = history.at(-1)?.time ?? null;
-        if (last == null) return latest;
-        return latest == null ? last : Math.max(latest, last);
-      }, null);
-
       let start: number;
       let rangeEnd: number;
 
-      if (range === "live") {
-        // Last 90 minutes ending at the most recent candle
-        rangeEnd = latestHistoryTime ?? now;
-        start = rangeEnd - liveWindowSeconds;
-      } else if (range === "1d") {
-        // From when ALL positions have data (max of first candles = stock market open)
-        // This avoids midnight crypto candles polluting the x-axis start
+      if (range === "1d") {
+        // Start when ALL positions have data (max of first candles = stock market open).
+        // This prevents 24/7 crypto candles from pulling the axis back to midnight.
+        const latestHistoryTime = positionsWithEntryTime.reduce<number | null>((latest, { history }) => {
+          const last = history.at(-1)?.time ?? null;
+          return last == null ? latest : latest == null ? last : Math.max(latest, last);
+        }, null);
         const maxFirstCandle = positionsWithEntryTime.reduce<number | null>((acc, { history }) => {
           const first = history[0]?.time ?? null;
-          if (first == null) return acc;
-          return acc == null ? first : Math.max(acc, first);
+          return first == null ? acc : acc == null ? first : Math.max(acc, first);
         }, null);
         rangeEnd = latestHistoryTime ?? now;
         start = maxFirstCandle ?? rangeStart("1d", now);
