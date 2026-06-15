@@ -11,17 +11,38 @@ const updateSchema = realizedPnlSchema.extend({
   id: z.string().min(1)
 });
 
+type RealizedPnlInput = z.infer<typeof addSchema> | z.infer<typeof updateSchema>;
+
+function sanitizeRealizedPnlInput<T extends RealizedPnlInput>(entry: T): T {
+  if (entry.assetClass === "perp") {
+    return {
+      ...entry,
+      currency: "USD"
+    };
+  }
+
+  return {
+    ...entry,
+    assetClass: entry.assetClass ?? "stock",
+    leverage: undefined,
+    margin_mode: undefined,
+    margin_used: undefined,
+    bitstamp_market: undefined
+  };
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const parsed = addSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  const submitted = sanitizeRealizedPnlInput(parsed.data);
 
   const entries = await getRealizedPnl();
   await setRealizedPnl([
     ...entries,
     {
       id: crypto.randomUUID(),
-      ...parsed.data
+      ...submitted
     }
   ]);
 
@@ -32,12 +53,13 @@ export async function PUT(request: Request) {
   const body = await request.json();
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  const submitted = sanitizeRealizedPnlInput(parsed.data);
 
   const entries = await getRealizedPnl();
-  const exists = entries.some((entry) => entry.id === parsed.data.id);
+  const exists = entries.some((entry) => entry.id === submitted.id);
   if (!exists) return NextResponse.json({ error: "Realized PnL entry not found" }, { status: 404 });
 
-  await setRealizedPnl(entries.map((entry) => (entry.id === parsed.data.id ? parsed.data : entry)));
+  await setRealizedPnl(entries.map((entry) => (entry.id === submitted.id ? submitted : entry)));
   return NextResponse.json({ ok: true });
 }
 

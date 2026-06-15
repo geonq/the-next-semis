@@ -26,6 +26,23 @@ import { TickerAutocomplete } from "./ticker-autocomplete";
 import { useLiveQuotes } from "./use-live-quotes";
 import { useLivePerpQuotes } from "./use-live-perp-quotes";
 
+function positionAssetClass(position: Pick<Position, "assetClass">): AssetClass {
+  return position.assetClass ?? "stock";
+}
+
+function positionKey(position: Pick<Position, "ticker" | "assetClass">): string {
+  return `${positionAssetClass(position)}:${position.ticker}`;
+}
+
+function positionLabel(position: Pick<Position, "ticker" | "assetClass">): string {
+  const label = positionAssetClass(position) === "perp"
+    ? "perp"
+    : positionAssetClass(position) === "crypto"
+      ? "spot"
+      : "stock";
+  return `${position.ticker} ${label}`;
+}
+
 export function PortfolioClient({
   positions,
   realizedPnl,
@@ -64,11 +81,11 @@ export function PortfolioClient({
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [editingRealizedPnl, setEditingRealizedPnl] = useState<RealizedPnlEntry | null>(null);
 
-  async function deletePosition(ticker: string) {
+  async function deletePosition(position: Position) {
     await fetch("/api/positions", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticker })
+      body: JSON.stringify({ ticker: position.ticker, assetClass: position.assetClass ?? "stock" })
     });
     router.refresh();
   }
@@ -102,11 +119,13 @@ export function PortfolioClient({
       <div className="m-pos-list">
         {enriched.map((position) => (
           <MobilePositionRow
-            key={position.ticker}
+            key={positionKey(position)}
             position={position}
             isAdmin={isAdmin}
             onDelete={deletePosition}
-            onEdit={(ticker) => setEditingPosition(positions.find((p) => p.ticker === ticker) ?? null)}
+            onEdit={(selected) =>
+              setEditingPosition(positions.find((p) => positionKey(p) === positionKey(selected)) ?? null)
+            }
           />
         ))}
       </div>
@@ -130,7 +149,7 @@ export function PortfolioClient({
             {enriched.map((position) => {
               const isPerp = position.assetClass === "perp";
               return (
-                <tr key={position.ticker}>
+                <tr key={positionKey(position)}>
                   <td>
                     <span className="position-cell">
                       <span className="ticker">
@@ -165,16 +184,16 @@ export function PortfolioClient({
                       <span className="position-actions">
                         <button
                           className="edit-btn"
-                          onClick={() => setEditingPosition(positions.find((p) => p.ticker === position.ticker) ?? null)}
+                          onClick={() => setEditingPosition(positions.find((p) => positionKey(p) === positionKey(position)) ?? null)}
                           type="button"
                         >
                           Edit
                         </button>
                         <button
                           className="delete-btn"
-                          onClick={() => deletePosition(position.ticker)}
+                          onClick={() => deletePosition(position)}
                           type="button"
-                          aria-label={`Remove ${position.ticker}`}
+                          aria-label={`Remove ${positionLabel(position)}`}
                         >
                           ✕
                         </button>
@@ -238,8 +257,8 @@ function MobilePositionRow({
 }: {
   position: EnrichedPosition;
   isAdmin: boolean;
-  onDelete: (ticker: string) => void;
-  onEdit: (ticker: string) => void;
+  onDelete: (position: EnrichedPosition) => void;
+  onEdit: (position: EnrichedPosition) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -309,17 +328,17 @@ function MobilePositionRow({
             <div className="m-pos-actions">
               <button
                 className="m-pos-edit"
-                onClick={() => onEdit(position.ticker)}
+                onClick={() => onEdit(position)}
                 type="button"
               >
-                Edit {position.ticker}
+                Edit {positionLabel(position)}
               </button>
               <button
                 className="m-pos-delete"
-                onClick={() => onDelete(position.ticker)}
+                onClick={() => onDelete(position)}
                 type="button"
               >
-                Remove {position.ticker}
+                Remove {positionLabel(position)}
               </button>
             </div>
           ) : null}
@@ -1004,7 +1023,11 @@ function EditPositionForm({
     const res = await fetch("/api/positions", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ originalTicker: position.ticker, ...positionPayload(form) })
+      body: JSON.stringify({
+        originalTicker: position.ticker,
+        originalAssetClass: position.assetClass ?? "stock",
+        ...positionPayload(form)
+      })
     });
 
     if (res.ok) {
