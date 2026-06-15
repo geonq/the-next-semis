@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
+import { CandlestickChart } from "iconoir-react";
 import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
 import { BITSTAMP_PERPS, findBitstampPerpByTicker } from "@/lib/perps";
 import {
@@ -41,6 +42,15 @@ function positionLabel(position: Pick<Position, "ticker" | "assetClass">): strin
       ? "spot"
       : "stock";
   return `${position.ticker} ${label}`;
+}
+
+function stakingLabel(position: Pick<Position, "assetClass" | "staked_amount" | "staking_apy" | "staking_provider">): string | null {
+  if (position.assetClass !== "crypto" || !position.staked_amount || position.staked_amount <= 0) return null;
+  const provider = position.staking_provider ? `${position.staking_provider} ` : "";
+  const apy = position.staking_apy != null
+    ? ` · ${position.staking_apy.toLocaleString("en-US", { maximumFractionDigits: 2 })}% APY`
+    : "";
+  return `${provider}${fmtQuantity(position.staked_amount)} staked${apy}`;
 }
 
 export function PortfolioClient({
@@ -151,16 +161,17 @@ export function PortfolioClient({
               return (
                 <tr key={positionKey(position)}>
                   <td>
-                    <span className="position-cell">
-                      <span className="ticker">
-                        {position.ticker}
-                        {isPerp && position.side ? (
-                          <span className={`perp-side-badge ${position.side}`}>{position.side === "long" ? "L" : "S"}</span>
-                        ) : null}
+                      <span className="position-cell">
+                        <span className="ticker">
+                          {position.ticker}
+                          {isPerp && position.side ? (
+                            <span className={`perp-side-badge ${position.side}`}>{position.side === "long" ? "L" : "S"}</span>
+                          ) : null}
+                        </span>
+                        <span className="subtle">{position.company}</span>
+                        {stakingLabel(position) ? <span className="staking-subline">{stakingLabel(position)}</span> : null}
                       </span>
-                      <span className="subtle">{position.company}</span>
-                    </span>
-                  </td>
+                    </td>
                   <td className="tabular">{position.shares.toLocaleString("en-US", { maximumFractionDigits: 8 })}</td>
                   <td className="tabular">{fmtUsd(position.average_cost_usd ?? position.average_cost)}</td>
                   <td className="tabular">{fmtUsd(position.current_price)}</td>
@@ -265,7 +276,16 @@ function MobilePositionRow({
   return (
     <div className="m-pos-row">
       <button className="m-pos-summary" onClick={() => setOpen((v) => !v)} type="button">
-        <span className="m-pos-ticker">{position.ticker}</span>
+        <span className="m-pos-title">
+          <span className="m-pos-ticker">{position.ticker}</span>
+          {position.assetClass === "perp" ? (
+            <span className={`m-pos-kind perp ${position.side === "short" ? "short" : "long"}`}>
+              <CandlestickChart width={13} height={13} strokeWidth={1.8} aria-hidden="true" />
+              <span>PERP</span>
+              {position.side ? <span>{position.side === "short" ? "S" : "L"}</span> : null}
+            </span>
+          ) : null}
+        </span>
         <span className="m-pos-amount tabular">{position.shares.toLocaleString("en-US")}</span>
       </button>
       <div className={`m-pos-detail${open ? " open" : ""}`}>
@@ -291,10 +311,18 @@ function MobilePositionRow({
                 </div>
               </>
             ) : (
-              <div className="m-pos-stat">
-                <span className="m-pos-stat-label">Value</span>
-                <span className="m-pos-stat-value tabular">{fmtUsd(position.total_value)}</span>
-              </div>
+              <>
+                <div className="m-pos-stat">
+                  <span className="m-pos-stat-label">Value</span>
+                  <span className="m-pos-stat-value tabular">{fmtUsd(position.total_value)}</span>
+                </div>
+                {stakingLabel(position) ? (
+                  <div className="m-pos-stat">
+                    <span className="m-pos-stat-label">Staking</span>
+                    <span className="m-pos-stat-value tabular">{stakingLabel(position)}</span>
+                  </div>
+                ) : null}
+              </>
             )}
             <div className="m-pos-stat">
               <span className="m-pos-stat-label">PnL $</span>
@@ -732,6 +760,9 @@ type PositionFormState = {
   currency: string;
   entry_date: string;
   sector: string;
+  staking_provider: string;
+  staked_amount: string;
+  staking_apy: string;
   // Perp
   side: "long" | "short";
   leverage: string;
@@ -750,6 +781,9 @@ const emptyPositionForm: PositionFormState = {
   currency: "USD",
   entry_date: "",
   sector: "",
+  staking_provider: "",
+  staked_amount: "",
+  staking_apy: "",
   side: "long",
   leverage: "",
   margin_mode: "isolated",
@@ -768,6 +802,9 @@ function formFromPosition(position: Position): PositionFormState {
     currency: position.assetClass === "perp" ? "USD" : (position.average_cost_usd != null ? "USD" : position.currency),
     entry_date: position.entry_date ?? "",
     sector: position.sector,
+    staking_provider: position.staking_provider ?? "",
+    staked_amount: position.staked_amount != null ? String(position.staked_amount) : "",
+    staking_apy: position.staking_apy != null ? String(position.staking_apy) : "",
     side: position.side ?? "long",
     leverage: position.leverage != null ? String(position.leverage) : "",
     margin_mode: position.margin_mode ?? "isolated",
@@ -788,7 +825,13 @@ function positionPayload(form: PositionFormState) {
     sector: form.sector
   };
   if (form.assetClass === "crypto") {
-    return { ...base, coinGeckoId: form.coinGeckoId || undefined };
+    return {
+      ...base,
+      coinGeckoId: form.coinGeckoId || undefined,
+      staking_provider: form.staking_provider || undefined,
+      staked_amount: form.staked_amount ? parseFloat(form.staked_amount) : undefined,
+      staking_apy: form.staking_apy ? parseFloat(form.staking_apy) : undefined
+    };
   }
   if (form.assetClass === "perp") {
     return {
@@ -1305,7 +1348,17 @@ function PositionFormFields({
   const perpTickerListId = useId();
 
   function switchClass(next: AssetClass) {
-    setForm((f) => ({ ...f, ticker: "", company: "", coinGeckoId: "", bitstamp_market: "", assetClass: next }));
+    setForm((f) => ({
+      ...f,
+      ticker: "",
+      company: "",
+      coinGeckoId: "",
+      bitstamp_market: "",
+      staking_provider: "",
+      staked_amount: "",
+      staking_apy: "",
+      assetClass: next
+    }));
   }
 
   const knownPerp = findBitstampPerpByTicker(form.ticker);
@@ -1458,6 +1511,55 @@ function PositionFormFields({
             <option value="GBP">GBP</option>
             <option value="JPY">JPY</option>
           </select>
+          {form.assetClass === "crypto" ? (
+            <>
+              <input
+                className="add-input"
+                placeholder="Staking provider (optional)"
+                list="staking-providers"
+                value={form.staking_provider}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    staking_provider: e.target.value,
+                    staking_apy:
+                      e.target.value.toLowerCase() === "robinhood" && f.ticker === "SOL" && !f.staking_apy
+                        ? "4.5"
+                        : f.staking_apy
+                  }))
+                }
+              />
+              <datalist id="staking-providers">
+                <option value="Robinhood" />
+                <option value="Coinbase" />
+                <option value="Kraken" />
+                <option value="Other" />
+              </datalist>
+              <input
+                className="add-input"
+                placeholder="Staked amount (coins)"
+                type="number"
+                step="any"
+                value={form.staked_amount}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    staked_amount: e.target.value,
+                    staking_provider: e.target.value && !f.staking_provider ? "Robinhood" : f.staking_provider,
+                    staking_apy: e.target.value && f.ticker === "SOL" && !f.staking_apy ? "4.5" : f.staking_apy
+                  }))
+                }
+              />
+              <input
+                className="add-input"
+                placeholder="Staking APY %"
+                type="number"
+                step="any"
+                value={form.staking_apy}
+                onChange={(e) => setForm((f) => ({ ...f, staking_apy: e.target.value }))}
+              />
+            </>
+          ) : null}
         </>
       )}
 

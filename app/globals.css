@@ -132,6 +132,24 @@ ol {
   width: 100%;
 }
 
+.icon-attribution {
+  margin: -56px auto 32px;
+  max-width: 1280px;
+  padding: 0 24px;
+  text-align: center;
+  width: 100%;
+}
+
+.icon-attribution a {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.icon-attribution a:hover {
+  color: rgba(255, 255, 255, 0.65);
+}
+
 .stack-xl {
   display: grid;
   gap: 64px;
@@ -393,6 +411,12 @@ ol {
 
 .perp-value-cell .muted {
   font-size: 0.75rem;
+}
+
+.staking-subline {
+  color: var(--color-neutral);
+  font-size: 0.75rem;
+  line-height: 1.4;
 }
 
 .perp-side-badge {
@@ -1777,6 +1801,7 @@ ol {
   cursor: pointer;
   display: flex;
   font: inherit;
+  gap: 12px;
   justify-content: space-between;
   padding: 14px 0;
   width: 100%;
@@ -1786,10 +1811,48 @@ ol {
   color: var(--color-fg);
   font-size: 14px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-pos-title {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.m-pos-kind {
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  height: 22px;
+  line-height: 1;
+  padding: 0 6px;
+}
+
+.m-pos-kind.perp {
+  color: var(--color-gain);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.m-pos-kind.perp.short {
+  color: var(--color-loss);
+}
+
+.m-pos-kind svg {
+  flex: 0 0 auto;
 }
 
 .m-pos-amount {
   color: var(--color-fg);
+  flex: 0 0 auto;
   font-size: 14px;
   font-weight: 600;
 }
@@ -1903,6 +1966,11 @@ ol {
 
   .shell {
     padding-top: 40px;
+  }
+
+  .icon-attribution {
+    padding-left: 18px;
+    padding-right: 18px;
   }
 
   .hero-number {

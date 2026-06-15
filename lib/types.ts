@@ -10,6 +10,10 @@ export type Position = {
   sector: string;
   thesis_id?: string;
   coinGeckoId?: string;
+  // Crypto spot staking
+  staking_provider?: string;
+  staked_amount?: number;
+  staking_apy?: number;
   // Perp-specific
   side?: "long" | "short";
   leverage?: number;

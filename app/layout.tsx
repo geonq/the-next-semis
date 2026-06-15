@@ -20,6 +20,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <SiteNav />
         <main className="shell">{children}</main>
+        <footer className="icon-attribution">
+          <a href="https://www.streamlinehq.com" target="_blank" rel="noreferrer">
+            Icons by Streamline
+          </a>
+        </footer>
         <Analytics />
         <SpeedInsights />
       </body>

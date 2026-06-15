@@ -16,6 +16,9 @@ const addSchema = z.object({
   sector: z.string().min(1).max(100),
   thesis_id: z.string().max(100).optional(),
   coinGeckoId: z.string().max(100).optional(),
+  staking_provider: z.string().max(80).optional(),
+  staked_amount: z.number().finite().nonnegative().optional(),
+  staking_apy: z.number().finite().nonnegative().optional(),
   side: z.enum(["long", "short"]).optional(),
   leverage: z.number().finite().positive().optional(),
   margin_mode: z.enum(["isolated", "shared"]).optional(),
@@ -60,6 +63,9 @@ function sanitizePositionInput<T extends PositionInput>(position: T): T {
     return {
       ...position,
       coinGeckoId: undefined,
+      staking_provider: undefined,
+      staked_amount: undefined,
+      staking_apy: undefined,
       currency: "USD"
     };
   }
@@ -68,6 +74,9 @@ function sanitizePositionInput<T extends PositionInput>(position: T): T {
     ...position,
     assetClass: position.assetClass ?? "stock",
     coinGeckoId: undefined,
+    staking_provider: undefined,
+    staked_amount: undefined,
+    staking_apy: undefined,
     side: undefined,
     leverage: undefined,
     margin_mode: undefined,
@@ -103,6 +112,17 @@ async function submittedCostUsd(position: z.infer<typeof addSchema> | z.infer<ty
   return rate != null ? position.average_cost * rate : undefined;
 }
 
+function stakingInputError(position: PositionInput, maxShares = position.shares): string | null {
+  if (position.assetClass !== "crypto") return null;
+  if (position.staked_amount != null && position.staked_amount > maxShares) {
+    return "Staked amount cannot exceed position quantity";
+  }
+  if ((position.staked_amount ?? 0) > 0 && position.staking_apy == null) {
+    return "Staking APY is required when staking amount is set";
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const parsed = addSchema.safeParse(body);
@@ -112,6 +132,8 @@ export async function POST(request: Request) {
 
   const positions = await getPositions();
   const existing = positions.find((p) => samePositionIdentity(p, submitted.ticker, submittedAssetClass));
+  const stakingError = stakingInputError(submitted, (existing?.shares ?? 0) + submitted.shares);
+  if (stakingError) return NextResponse.json({ error: stakingError }, { status: 400 });
 
   const isPerp = submittedAssetClass === "perp";
 
@@ -155,6 +177,9 @@ export async function POST(request: Request) {
             currency: "USD",
             assetClass: submittedAssetClass,
             coinGeckoId: submitted.coinGeckoId ?? position.coinGeckoId,
+            staking_provider: submitted.staking_provider ?? position.staking_provider,
+            staked_amount: submitted.staked_amount ?? position.staked_amount,
+            staking_apy: submitted.staking_apy ?? position.staking_apy,
             sector: submitted.sector || position.sector
           }
         : position
@@ -172,6 +197,8 @@ export async function PUT(request: Request) {
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   const submitted = sanitizePositionInput(parsed.data);
+  const stakingError = stakingInputError(submitted);
+  if (stakingError) return NextResponse.json({ error: stakingError }, { status: 400 });
   const originalAssetClass = parsed.data.originalAssetClass ?? assetClassOf(submitted);
   const submittedAssetClass = assetClassOf(submitted);
 
