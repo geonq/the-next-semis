@@ -95,8 +95,8 @@ export function PortfolioChart({
         textColor: colors.neutral
       },
       grid: {
-        vertLines: { color: colors.grid },
-        horzLines: { color: colors.grid }
+        vertLines: { visible: false },
+        horzLines: { visible: false }
       },
       width: container.clientWidth,
       height: 340,
@@ -169,10 +169,6 @@ export function PortfolioChart({
         layout: {
           background: { color: next.bg },
           textColor: next.neutral
-        },
-        grid: {
-          vertLines: { color: next.grid },
-          horzLines: { color: next.grid }
         },
         rightPriceScale: {
           borderColor: next.grid,

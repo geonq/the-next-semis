@@ -22,9 +22,18 @@ async function fetchPortfolioChartHistories(positions: Position[]): Promise<Port
     ranges.map(async (range) => {
       const entries = await Promise.all(
         active.map(async (position): Promise<[string, Candle[]]> => {
-          const history = position.coinGeckoId
-            ? await fetchCoinGeckoHistory(position.coinGeckoId, range)
-            : await fetchHistory(position.ticker, range);
+          let history: Candle[];
+          if (position.coinGeckoId) {
+            if (range === "1d") {
+              // Yahoo provides 5-min candles; CoinGecko free tier only 30-min
+              history = await fetchHistory(position.ticker, range);
+              if (history.length === 0) history = await fetchCoinGeckoHistory(position.coinGeckoId, range);
+            } else {
+              history = await fetchCoinGeckoHistory(position.coinGeckoId, range);
+            }
+          } else {
+            history = await fetchHistory(position.ticker, range);
+          }
           return [position.ticker, history];
         })
       );
