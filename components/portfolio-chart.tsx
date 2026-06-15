@@ -12,6 +12,7 @@ import {
 import { fmtUsd } from "@/lib/format";
 import type { PortfolioChartPoint, PortfolioChartRange, PortfolioChartSeriesByRange } from "@/lib/types";
 import { SegmentedTabs } from "./segmented-tabs";
+import { IntradayChart } from "./intraday-chart";
 
 const chartOptions: Array<{ label: string; range: PortfolioChartRange }> = [
   { label: "live", range: "live" },
@@ -36,9 +37,8 @@ function readThemeColors() {
   const cssVar = (name: string) => style.getPropertyValue(name).trim();
   return {
     bg: cssVar("--color-bg"),
-    grid: cssVar("--color-grid"),
     neutral: cssVar("--color-neutral"),
-    accent: cssVar("--color-accent")
+    grid: cssVar("--color-grid")
   };
 }
 
@@ -67,7 +67,9 @@ export function PortfolioChart({
 }) {
   const [activeLabel, setActiveLabel] = useState("live");
   const activeRange = chartOptions.find((option) => option.label === activeLabel)?.range ?? "live";
+  const isIntraday = activeRange === "live" || activeRange === "1d";
   const points = useMemo(() => seriesByRange[activeRange] ?? [], [activeRange, seriesByRange]);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
@@ -84,6 +86,7 @@ export function PortfolioChart({
     });
   }
 
+  // TradingView chart — only active for non-intraday ranges
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -104,18 +107,14 @@ export function PortfolioChart({
       handleScale: false,
       kineticScroll: { mouse: false, touch: false },
       timeScale: {
-        timeVisible: activeRange === "live" || activeRange === "1d",
+        timeVisible: false,
         secondsVisible: false,
         lockVisibleTimeRangeOnResize: true
       },
       rightPriceScale: {
-        borderColor: colors.grid,
         borderVisible: false,
         visible: false,
-        scaleMargins: {
-          top: 0.08,
-          bottom: 0.08
-        }
+        scaleMargins: { top: 0.08, bottom: 0.08 }
       }
     });
 
@@ -132,27 +131,20 @@ export function PortfolioChart({
     seriesRef.current = areaSeries;
 
     const handleCrosshairMove = (param: MouseEventParams<Time>) => {
-      const point = param.point;
+      const pt = param.point;
       const time = typeof param.time === "number" ? param.time : null;
-      if (!point || time == null || point.x < 0 || point.x > container.clientWidth || point.y < 0 || point.y > container.clientHeight) {
+      if (!pt || time == null || pt.x < 0 || pt.x > container.clientWidth || pt.y < 0 || pt.y > container.clientHeight) {
         setTooltip(null);
         onHoverChange?.(null);
         return;
       }
-
       const hovered = pointsByTimeRef.current.get(time);
-      if (!hovered) {
-        setTooltip(null);
-        onHoverChange?.(null);
-        return;
-      }
-
+      if (!hovered) { setTooltip(null); onHoverChange?.(null); return; }
       const first = rangeFirstValueRef.current;
       const change = first != null ? hovered.value - first : null;
       const changePct = first != null && first !== 0 && change != null ? (change / first) * 100 : null;
       const label = hoverLabel(hovered.time, activeRangeRef.current);
-      const x = Math.min(Math.max(point.x, 74), Math.max(container.clientWidth - 74, 74));
-
+      const x = Math.min(Math.max(pt.x, 74), Math.max(container.clientWidth - 74, 74));
       setTooltip({ x, label, point: hovered });
       onHoverChange?.({ point: hovered, change, changePct, label });
     };
@@ -166,19 +158,8 @@ export function PortfolioChart({
     const themeObserver = new MutationObserver(() => {
       const next = readThemeColors();
       chart.applyOptions({
-        layout: {
-          background: { color: next.bg },
-          textColor: next.neutral
-        },
-        rightPriceScale: {
-          borderColor: next.grid,
-          borderVisible: false,
-          visible: false,
-          scaleMargins: {
-            top: 0.08,
-            bottom: 0.08
-          }
-        }
+        layout: { background: { color: next.bg }, textColor: next.neutral },
+        rightPriceScale: { borderVisible: false, visible: false, scaleMargins: { top: 0.08, bottom: 0.08 } }
       });
       applySeriesColor(portfolioChartBlue);
     });
@@ -194,35 +175,28 @@ export function PortfolioChart({
     };
   }, []);
 
+  // Sync TradingView data when range/points change (only used for non-intraday)
   useEffect(() => {
-    const chart = chartRef.current;
-    const areaSeries = seriesRef.current;
-    if (!chart || !areaSeries) return;
-    pointsByTimeRef.current = new Map(points.map((point) => [point.time, point]));
     rangeFirstValueRef.current = points[0]?.value ?? null;
     activeRangeRef.current = activeRange;
     setTooltip(null);
     onHoverChange?.(null);
 
+    if (isIntraday) return;
+
+    const chart = chartRef.current;
+    const areaSeries = seriesRef.current;
+    if (!chart || !areaSeries) return;
+
+    pointsByTimeRef.current = new Map(points.map((point) => [point.time, point]));
     applySeriesColor(portfolioChartBlue);
     chart.applyOptions({
-      timeScale: {
-        timeVisible: activeRange === "live" || activeRange === "1d",
-        secondsVisible: false
-      },
-      rightPriceScale: {
-        borderVisible: false,
-        visible: false,
-        scaleMargins: {
-          top: 0.08,
-          bottom: 0.08
-        }
-      }
+      timeScale: { timeVisible: false, secondsVisible: false },
+      rightPriceScale: { borderVisible: false, visible: false, scaleMargins: { top: 0.08, bottom: 0.08 } }
     });
-
     areaSeries.setData(chartData(points));
     chart.timeScale().fitContent();
-  }, [activeRange, points]);
+  }, [activeRange, points, isIntraday]);
 
   const hasData = points.length > 0;
 
@@ -232,8 +206,27 @@ export function PortfolioChart({
         <p className="section-label">Portfolio chart</p>
         <SegmentedTabs options={chartOptions.map((option) => option.label)} value={activeLabel} onChange={setActiveLabel} />
       </div>
-      <div className="portfolio-chart-wrap">
-        <div className="chart portfolio-chart" ref={containerRef} aria-label="Portfolio value chart" />
+      <div className="portfolio-chart-wrap" ref={wrapRef}>
+        {isIntraday ? (
+          <IntradayChart
+            points={points}
+            color={portfolioChartBlue}
+            height={340}
+            onHover={(info) => {
+              if (!info) { setTooltip(null); onHoverChange?.(null); return; }
+              const first = rangeFirstValueRef.current;
+              const change = first != null ? info.point.value - first : null;
+              const changePct = first != null && first !== 0 && change != null ? (change / first) * 100 : null;
+              const label = hoverLabel(info.point.time, activeRange);
+              const wrapWidth = wrapRef.current?.clientWidth ?? 640;
+              const x = Math.min(Math.max(info.x, 74), Math.max(wrapWidth - 74, 74));
+              setTooltip({ x, label, point: info.point });
+              onHoverChange?.({ point: info.point, change, changePct, label });
+            }}
+          />
+        ) : (
+          <div className="chart portfolio-chart" ref={containerRef} aria-label="Portfolio value chart" />
+        )}
         {tooltip ? (
           <div className="portfolio-chart-tooltip" style={{ left: `${tooltip.x}px` }}>
             <span className="tabular">{fmtUsd(tooltip.point.value)}</span>

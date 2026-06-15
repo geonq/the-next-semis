@@ -193,6 +193,7 @@ export type PortfolioChartHistoryRange = "1d" | "5d" | "1mo" | "1y" | "max";
 export type PortfolioChartHistories = Partial<Record<PortfolioChartHistoryRange, Record<string, Candle[]>>>;
 
 const secondsPerDay = 24 * 60 * 60;
+const liveWindowSeconds = 90 * 60;
 
 function startOfUtcYear(timestamp: number): number {
   const date = new Date(timestamp * 1000);
@@ -200,7 +201,8 @@ function startOfUtcYear(timestamp: number): number {
 }
 
 function rangeStart(range: PortfolioChartRange, now: number): number {
-  if (range === "live" || range === "1d") return now - secondsPerDay;
+  if (range === "live") return now - liveWindowSeconds;
+  if (range === "1d") return now - secondsPerDay;
   if (range === "1w") return now - 7 * secondsPerDay;
   if (range === "1month") return now - 30 * secondsPerDay;
   if (range === "ytd") return startOfUtcYear(now);
@@ -285,24 +287,34 @@ export function buildPortfolioChartSeries({
           entryTime: position.entry_date ? dateToUtcSeconds(position.entry_date) : null,
           history: (sourceHistories[position.ticker] ?? []).filter((candle) => candle.time <= now)
         }));
-      const isIntraday = range === "live" || range === "1d";
-      const intradayBounds = isIntraday
-        ? positionsWithEntryTime.reduce<{ earliest: number | null; latest: number | null }>(
-            (acc, { history }) => ({
-              earliest: history[0]?.time != null
-                ? (acc.earliest == null ? history[0].time : Math.min(acc.earliest, history[0].time))
-                : acc.earliest,
-              latest: history.at(-1)?.time != null
-                ? (acc.latest == null ? history.at(-1)!.time : Math.max(acc.latest, history.at(-1)!.time))
-                : acc.latest
-            }),
-            { earliest: null, latest: null }
-          )
-        : null;
-      const rangeEnd = isIntraday && intradayBounds?.latest != null ? intradayBounds.latest : now;
-      const start = isIntraday && intradayBounds?.earliest != null
-        ? intradayBounds.earliest
-        : rangeStart(range, now);
+      // latest candle across all positions — used for live/1d range ends
+      const latestHistoryTime = positionsWithEntryTime.reduce<number | null>((latest, { history }) => {
+        const last = history.at(-1)?.time ?? null;
+        if (last == null) return latest;
+        return latest == null ? last : Math.max(latest, last);
+      }, null);
+
+      let start: number;
+      let rangeEnd: number;
+
+      if (range === "live") {
+        // Last 90 minutes ending at the most recent candle
+        rangeEnd = latestHistoryTime ?? now;
+        start = rangeEnd - liveWindowSeconds;
+      } else if (range === "1d") {
+        // From when ALL positions have data (max of first candles = stock market open)
+        // This avoids midnight crypto candles polluting the x-axis start
+        const maxFirstCandle = positionsWithEntryTime.reduce<number | null>((acc, { history }) => {
+          const first = history[0]?.time ?? null;
+          if (first == null) return acc;
+          return acc == null ? first : Math.max(acc, first);
+        }, null);
+        rangeEnd = latestHistoryTime ?? now;
+        start = maxFirstCandle ?? rangeStart("1d", now);
+      } else {
+        start = rangeStart(range, now);
+        rangeEnd = now;
+      }
       const baselineTime = start > 0 ? start : undefined;
 
       const times = new Set<number>();
@@ -374,9 +386,9 @@ export function buildPortfolioChartSeries({
             ? cumulativeCash + cumulativeRealized + activeUnrealizedPnl
             : activeValue + cumulativeRealized;
           if (value === 0) return [];
-          // Without a cash ledger, a point with no active position value is just isolated
-          // realized PnL from a past trade — not a meaningful portfolio snapshot.
-          if (!hasCashLedger && activeValue === 0) return [];
+          // No active position data + no cash deposits yet = isolated realized PnL fragment,
+          // not a meaningful portfolio snapshot (this is what causes the spurious 2023 point).
+          if (activeValue === 0 && activeUnrealizedPnl === 0 && cumulativeCash <= 0) return [];
           return [{
             time,
             value,

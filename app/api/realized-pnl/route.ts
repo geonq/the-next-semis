@@ -31,6 +31,11 @@ function sanitizeRealizedPnlInput<T extends RealizedPnlInput>(entry: T): T {
   };
 }
 
+export async function GET() {
+  const entries = await getRealizedPnl();
+  return NextResponse.json(entries);
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const parsed = addSchema.safeParse(body);
