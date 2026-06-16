@@ -280,6 +280,65 @@ describe("portfolio calculations", () => {
     expect(series["1d"].length).toBeGreaterThanOrEqual(3);
   });
 
+  it("keeps a ytd zero baseline until the first real portfolio data point", () => {
+    const jan1 = Date.UTC(2026, 0, 1) / 1000;
+    const june5 = Date.UTC(2026, 5, 5) / 1000;
+    const june6 = Date.UTC(2026, 5, 6) / 1000;
+    const june13 = Date.UTC(2026, 5, 13) / 1000;
+    const series = buildPortfolioChartSeries({
+      positions: [
+        { ticker: "HYPE", company: "Hyperliquid", shares: 1, average_cost: 5, entry_date: "2026-06-06", currency: "USD", sector: "Crypto" }
+      ],
+      realizedPnl: [],
+      now: june13,
+      histories: {
+        "1y": {
+          HYPE: [
+            { time: june6, open: 5, high: 5, low: 5, close: 5 },
+            { time: june13, open: 8, high: 8, low: 8, close: 8 }
+          ]
+        }
+      }
+    });
+
+    expect(series.ytd[0]).toEqual({ time: jan1, value: 0, active_value: 0, realized_pnl: 0 });
+    expect(series.ytd.find((point) => point.time === june5)).toEqual({
+      time: june5,
+      value: 0,
+      active_value: 0,
+      realized_pnl: 0
+    });
+    expect(series.ytd.find((point) => point.time === june6)).toMatchObject({ value: 5, active_value: 5 });
+    expect(series.ytd.at(-1)).toMatchObject({ time: june13, value: 8, active_value: 8 });
+    expect(series.ytd.length).toBeGreaterThan(150);
+  });
+
+  it("scales all-time to the oldest meaningful portfolio point instead of calendar zero", () => {
+    const june6 = Date.UTC(2026, 5, 6) / 1000;
+    const june8 = Date.UTC(2026, 5, 8) / 1000;
+    const june13 = Date.UTC(2026, 5, 13) / 1000;
+    const series = buildPortfolioChartSeries({
+      positions: [
+        { ticker: "HYPE", company: "Hyperliquid", shares: 1, average_cost: 5, entry_date: "2026-06-06", currency: "USD", sector: "Crypto" }
+      ],
+      realizedPnl: [],
+      now: june13,
+      histories: {
+        max: {
+          HYPE: [
+            { time: june6, open: 5, high: 5, low: 5, close: 5 },
+            { time: june8, open: 6, high: 6, low: 6, close: 6 },
+            { time: june13, open: 8, high: 8, low: 8, close: 8 }
+          ]
+        }
+      }
+    });
+
+    expect(series.all[0]).toEqual({ time: june6, value: 5, active_value: 5, realized_pnl: 0 });
+    expect(series.all.at(-1)).toMatchObject({ time: june13, value: 8, active_value: 8 });
+    expect(series.all.length).toBeGreaterThanOrEqual(8);
+  });
+
   it("does not count active holdings before their entry date", () => {
     const series = buildPortfolioChartSeries({
       positions: [
@@ -297,9 +356,18 @@ describe("portfolio calculations", () => {
       }
     });
 
-    expect(series.all).toEqual([
-      { time: Date.UTC(2026, 0, 10) / 1000, value: 240, active_value: 240, realized_pnl: 0 },
-      { time: Date.UTC(2026, 0, 12, 12) / 1000, value: 240, active_value: 240, realized_pnl: 0 }
-    ]);
+    expect(series.all[0]).toEqual({
+      time: Date.UTC(2026, 0, 10) / 1000,
+      value: 240,
+      active_value: 240,
+      realized_pnl: 0
+    });
+    expect(series.all.at(-1)).toEqual({
+      time: Date.UTC(2026, 0, 12, 12) / 1000,
+      value: 240,
+      active_value: 240,
+      realized_pnl: 0
+    });
+    expect(series.all.every((point) => point.time >= Date.UTC(2026, 0, 10) / 1000)).toBe(true);
   });
 });

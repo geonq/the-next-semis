@@ -207,6 +207,50 @@ function rangeStart(range: PortfolioChartRange, now: number): number {
   return 0;
 }
 
+function minNumber(current: number | null, next: number | null): number | null {
+  if (next == null) return current;
+  return current == null ? next : Math.min(current, next);
+}
+
+function firstMeaningfulHistoryTime({
+  positionsWithEntryTime,
+  cashFlows,
+  rangeEnd
+}: {
+  positionsWithEntryTime: Array<{ entryTime: number | null; history: Candle[] }>;
+  cashFlows: Array<{ time: number; value: number }>;
+  rangeEnd: number;
+}): number | null {
+  let first: number | null = null;
+
+  for (const { entryTime, history } of positionsWithEntryTime) {
+    const candle = history.find((item) => item.time <= rangeEnd && (entryTime == null || item.time >= entryTime));
+    first = minNumber(first, candle?.time ?? null);
+  }
+
+  for (const entry of cashFlows) {
+    if (entry.value !== 0 && entry.time <= rangeEnd) first = minNumber(first, entry.time);
+  }
+
+  return first;
+}
+
+function timelineStep(range: PortfolioChartRange, start: number, end: number): number | null {
+  if (range === "ytd") return secondsPerDay;
+  if (range !== "all") return null;
+
+  const span = end - start;
+  if (span <= 14 * secondsPerDay) return secondsPerDay;
+  if (span <= 120 * secondsPerDay) return secondsPerDay;
+  if (span <= 3 * 365 * secondsPerDay) return 7 * secondsPerDay;
+  return 30 * secondsPerDay;
+}
+
+function addTimelineAnchors(times: Set<number>, start: number, end: number, step: number | null) {
+  if (step == null || start > end) return;
+  for (let time = start; time <= end; time += step) times.add(time);
+}
+
 export function historySourceForPortfolioRange(range: PortfolioChartRange): PortfolioChartHistoryRange {
   if (range === "1d") return "1d";
   if (range === "1w") return "5d";
@@ -287,6 +331,7 @@ export function buildPortfolioChartSeries({
         }));
       let start: number;
       let rangeEnd: number;
+      let firstMeaningfulTime: number | null = null;
 
       if (range === "1d") {
         const latestHistoryTime = positionsWithEntryTime.reduce<number | null>((latest, { history }) => {
@@ -303,10 +348,13 @@ export function buildPortfolioChartSeries({
         start = rangeStart(range, now);
         rangeEnd = now;
       }
+      firstMeaningfulTime = firstMeaningfulHistoryTime({ positionsWithEntryTime, cashFlows, rangeEnd });
+      if (range === "all" && firstMeaningfulTime != null) start = firstMeaningfulTime;
       const baselineTime = start > 0 ? start : undefined;
 
       const times = new Set<number>();
       if (baselineTime != null) times.add(baselineTime);
+      addTimelineAnchors(times, start, rangeEnd, timelineStep(range, start, rangeEnd));
 
       for (const { history } of positionsWithEntryTime) {
         for (const candle of history) {
@@ -373,10 +421,11 @@ export function buildPortfolioChartSeries({
           const value = hasCashLedger
             ? cumulativeCash + cumulativeRealized + activeUnrealizedPnl
             : activeValue + cumulativeRealized;
-          if (value === 0) return [];
+          const keepZeroBaseline = range === "ytd" && firstMeaningfulTime != null && time < firstMeaningfulTime;
+          if (value === 0 && !keepZeroBaseline) return [];
           // No active position data + no cash deposits yet = isolated realized PnL fragment,
           // not a meaningful portfolio snapshot (this is what causes the spurious 2023 point).
-          if (activeValue === 0 && activeUnrealizedPnl === 0 && cumulativeCash <= 0) return [];
+          if (!keepZeroBaseline && activeValue === 0 && activeUnrealizedPnl === 0 && cumulativeCash <= 0) return [];
           return [{
             time,
             value,
