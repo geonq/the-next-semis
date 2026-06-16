@@ -183,7 +183,6 @@ describe("portfolio calculations", () => {
   });
 
   it("maps portfolio chart ranges to bounded history sources", () => {
-    expect(historySourceForPortfolioRange("live")).toBe("1d");
     expect(historySourceForPortfolioRange("1d")).toBe("1d");
     expect(historySourceForPortfolioRange("1w")).toBe("5d");
     expect(historySourceForPortfolioRange("1month")).toBe("1mo");
@@ -250,13 +249,14 @@ describe("portfolio calculations", () => {
     expect(series.all.some((point) => point.time === Date.UTC(2026, 0, 5) / 1000 && point.value === 1110)).toBe(true);
   });
 
-  it("uses a short latest-intraday window for live instead of duplicating the full 1d range", () => {
+  it("keeps the full 1d intraday series when one holding only has late candles", () => {
     const first = Date.UTC(2026, 0, 12, 14) / 1000;
     const middle = Date.UTC(2026, 0, 12, 15, 30) / 1000;
     const last = Date.UTC(2026, 0, 12, 16) / 1000;
     const series = buildPortfolioChartSeries({
       positions: [
-        { ticker: "NVDA", company: "NVIDIA", shares: 1, average_cost: 100, currency: "USD", sector: "Semis" }
+        { ticker: "NVDA", company: "NVIDIA", shares: 1, average_cost: 100, currency: "USD", sector: "Semis" },
+        { ticker: "AMD", company: "AMD", shares: 1, average_cost: 80, currency: "USD", sector: "Semis" }
       ],
       realizedPnl: [],
       now: Date.UTC(2026, 0, 12, 21) / 1000,
@@ -266,15 +266,18 @@ describe("portfolio calculations", () => {
             { time: first, open: 100, high: 100, low: 100, close: 100 },
             { time: middle, open: 105, high: 105, low: 105, close: 105 },
             { time: last, open: 110, high: 110, low: 110, close: 110 }
+          ],
+          AMD: [
+            { time: last, open: 80, high: 80, low: 80, close: 80 }
           ]
         }
       }
     });
 
-    expect(series.live.some((point) => point.time === first)).toBe(false);
-    expect(series.live.some((point) => point.time === middle)).toBe(true);
-    expect(series.live.at(-1)?.time).toBe(last);
     expect(series["1d"].some((point) => point.time === first)).toBe(true);
+    expect(series["1d"].some((point) => point.time === middle)).toBe(true);
+    expect(series["1d"].at(-1)?.time).toBe(last);
+    expect(series["1d"].length).toBeGreaterThanOrEqual(3);
   });
 
   it("does not count active holdings before their entry date", () => {

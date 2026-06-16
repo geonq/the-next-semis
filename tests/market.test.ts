@@ -77,6 +77,28 @@ describe("market data helpers", () => {
     await expect(fetchHistory("NVDA", "10y")).resolves.toEqual([{ time: 1, open: 10, high: 12, low: 9, close: 11 }]);
   });
 
+  it("refreshes 1d chart history on the live quote cadence", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        chart: {
+          result: [
+            {
+              timestamp: [1],
+              indicators: {
+                quote: [{ open: [10], high: [12], low: [9], close: [11] }]
+              }
+            }
+          ]
+        }
+      })
+    );
+
+    await fetchHistory("NVDA", "1d");
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain("range=1d&interval=5m");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ next: { revalidate: 30 } });
+  });
+
   it("normalizes quote detail fields for discovery scans", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       Response.json({

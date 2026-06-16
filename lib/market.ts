@@ -536,7 +536,7 @@ export async function fetchHistory(ticker: string, range = "1mo"): Promise<Candl
   const params = new URLSearchParams({ range, interval: intervalFor(range) });
   const response = await fetch(`${yahooBase}/v8/finance/chart/${encodeURIComponent(ticker)}?${params}`, {
     headers: { "user-agent": "Mozilla/5.0" },
-    next: { revalidate: 300 }
+    next: { revalidate: range === "1d" ? 30 : 300 }
   });
 
   if (!response.ok) return [];

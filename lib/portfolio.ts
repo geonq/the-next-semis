@@ -289,18 +289,16 @@ export function buildPortfolioChartSeries({
       let rangeEnd: number;
 
       if (range === "1d") {
-        // Start when ALL positions have data (max of first candles = stock market open).
-        // This prevents 24/7 crypto candles from pulling the axis back to midnight.
         const latestHistoryTime = positionsWithEntryTime.reduce<number | null>((latest, { history }) => {
           const last = history.at(-1)?.time ?? null;
           return last == null ? latest : latest == null ? last : Math.max(latest, last);
         }, null);
-        const maxFirstCandle = positionsWithEntryTime.reduce<number | null>((acc, { history }) => {
+        const firstHistoryTime = positionsWithEntryTime.reduce<number | null>((acc, { history }) => {
           const first = history[0]?.time ?? null;
-          return first == null ? acc : acc == null ? first : Math.max(acc, first);
+          return first == null ? acc : acc == null ? first : Math.min(acc, first);
         }, null);
         rangeEnd = latestHistoryTime ?? now;
-        start = maxFirstCandle ?? rangeStart("1d", now);
+        start = Math.max(rangeStart("1d", now), firstHistoryTime ?? rangeStart("1d", now));
       } else {
         start = rangeStart(range, now);
         rangeEnd = now;
