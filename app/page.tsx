@@ -25,9 +25,8 @@ async function fetchPortfolioChartHistories(positions: Position[]): Promise<Port
           let history: Candle[];
           if (position.coinGeckoId) {
             if (range === "1d") {
-              // Yahoo provides 5-min candles; CoinGecko free tier only 30-min
-              history = await fetchHistory(position.ticker, range);
-              if (history.length === 0) history = await fetchCoinGeckoHistory(position.coinGeckoId, range);
+              history = await fetchCoinGeckoHistory(position.coinGeckoId, range);
+              if (history.length === 0) history = await fetchHistory(position.ticker, range);
             } else {
               history = await fetchCoinGeckoHistory(position.coinGeckoId, range);
             }

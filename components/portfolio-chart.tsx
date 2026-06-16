@@ -93,11 +93,11 @@ export function PortfolioChart({
         textColor: colors.neutral
       },
       grid: {
-        vertLines: { visible: false },
-        horzLines: { visible: false }
+        vertLines: { color: colors.grid },
+        horzLines: { color: colors.grid }
       },
       width: container.clientWidth,
-      height: 340,
+      height: 380,
       handleScroll: false,
       handleScale: false,
       kineticScroll: { mouse: false, touch: false },
@@ -107,9 +107,8 @@ export function PortfolioChart({
         lockVisibleTimeRangeOnResize: true
       },
       rightPriceScale: {
-        borderVisible: false,
-        visible: false,
-        scaleMargins: { top: 0.08, bottom: 0.08 }
+        borderColor: colors.grid,
+        scaleMargins: { top: 0.08, bottom: 0.14 }
       }
     });
 
@@ -154,7 +153,11 @@ export function PortfolioChart({
       const next = readThemeColors();
       chart.applyOptions({
         layout: { background: { color: next.bg }, textColor: next.neutral },
-        rightPriceScale: { borderVisible: false, visible: false, scaleMargins: { top: 0.08, bottom: 0.08 } }
+        grid: {
+          vertLines: { color: next.grid },
+          horzLines: { color: next.grid }
+        },
+        rightPriceScale: { borderColor: next.grid, scaleMargins: { top: 0.08, bottom: 0.14 } }
       });
       applySeriesColor(portfolioChartBlue);
     });
@@ -183,7 +186,7 @@ export function PortfolioChart({
     applySeriesColor(portfolioChartBlue);
     chart.applyOptions({
       timeScale: { timeVisible: activeRange === "1d", secondsVisible: false },
-      rightPriceScale: { borderVisible: false, visible: false, scaleMargins: { top: 0.08, bottom: 0.08 } }
+      rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.14 } }
     });
     areaSeries.setData(chartData(points));
     chart.timeScale().fitContent();

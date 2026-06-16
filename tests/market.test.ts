@@ -99,6 +99,48 @@ describe("market data helpers", () => {
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ next: { revalidate: 30 } });
   });
 
+  it("uses daily candles for all-time history so short-lived charts are not weekly stubs", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        chart: {
+          result: [
+            {
+              timestamp: [1],
+              indicators: {
+                quote: [{ open: [10], high: [12], low: [9], close: [11] }]
+              }
+            }
+          ]
+        }
+      })
+    );
+
+    await fetchHistory("NVDA", "max");
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain("range=max&interval=1d");
+  });
+
+  it("keeps long ticker detail history bounded to weekly candles", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        chart: {
+          result: [
+            {
+              timestamp: [1],
+              indicators: {
+                quote: [{ open: [10], high: [12], low: [9], close: [11] }]
+              }
+            }
+          ]
+        }
+      })
+    );
+
+    await fetchHistory("NVDA", "10y");
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain("range=10y&interval=1wk");
+  });
+
   it("normalizes quote detail fields for discovery scans", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       Response.json({

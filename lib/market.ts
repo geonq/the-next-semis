@@ -663,6 +663,6 @@ function bitstampDisplayMarket(marketSymbol: string): string {
 function intervalFor(range: string): string {
   if (range === "1d") return "5m";
   if (range === "5d") return "15m";
-  if (range === "5y" || range === "10y" || range === "max") return "1wk";
+  if (range === "5y" || range === "10y") return "1wk";
   return "1d";
 }
