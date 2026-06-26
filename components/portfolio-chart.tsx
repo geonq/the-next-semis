@@ -21,7 +21,7 @@ const chartOptions: Array<{ label: string; range: PortfolioChartRange }> = [
   { label: "all time", range: "all" }
 ];
 
-const portfolioChartBlue = "#2563eb";
+const portfolioChartBlue = "#0253c4";
 
 export type PortfolioChartHover = {
   point: PortfolioChartPoint;
