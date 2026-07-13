@@ -2,10 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AreaChart, Area } from "./charts/area-chart";
-import { BarChart } from "./charts/bar-chart";
-import { Bar } from "./charts/bar";
-import { CandlestickChart } from "./charts/candlestick-chart";
-import { Candlestick } from "./charts/candlestick";
 import { Grid } from "./charts/grid";
 import { XAxis } from "./charts/x-axis";
 import { YAxis } from "./charts/y-axis";
@@ -22,9 +18,6 @@ const chartOptions: Array<{ label: string; range: PortfolioChartRange }> = [
   { label: "ytd", range: "ytd" },
   { label: "all time", range: "all" }
 ];
-
-const chartTypeOptions = ["area", "bars", "candles"] as const;
-type ChartType = (typeof chartTypeOptions)[number];
 
 const portfolioChartBlue = "#0253c4";
 
@@ -80,57 +73,20 @@ function fmtCompactUsd(value: number): string {
   return `${sign}$${abs.toFixed(2)}`;
 }
 
-type Bucket = {
+type ChartPoint = {
   date: Date;
   value: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
   sourcePoint: PortfolioChartPoint;
 };
 
-/** Buckets real points into <= maxBuckets groups, honest OHLC per bucket (never interpolated). */
-function bucketPoints(points: PortfolioChartPoint[], maxBuckets: number): Bucket[] {
-  if (points.length === 0) return [];
-  if (points.length <= maxBuckets) {
-    return points.map((point) => ({
-      date: new Date(point.time * 1000),
-      value: point.value,
-      open: point.value,
-      high: point.value,
-      low: point.value,
-      close: point.value,
-      sourcePoint: point
-    }));
-  }
-
-  const bucketSize = points.length / maxBuckets;
-  const buckets: Bucket[] = [];
-  for (let i = 0; i < maxBuckets; i++) {
-    const start = Math.floor(i * bucketSize);
-    const end = Math.min(points.length, Math.floor((i + 1) * bucketSize));
-    if (start >= end) continue;
-    const slice = points.slice(start, end);
-    const first = slice[0];
-    const last = slice[slice.length - 1];
-    let high = -Infinity;
-    let low = Infinity;
-    for (const p of slice) {
-      if (p.value > high) high = p.value;
-      if (p.value < low) low = p.value;
-    }
-    buckets.push({
-      date: new Date(last.time * 1000),
-      value: last.value,
-      open: first.value,
-      high,
-      low,
-      close: last.value,
-      sourcePoint: last
-    });
-  }
-  return buckets;
+/** Maps real portfolio points to the area chart's {date, value} shape. Area chart
+ * decimates internally (see decimate-time-series.ts), so no manual bucketing needed. */
+function toChartPoints(points: PortfolioChartPoint[]): ChartPoint[] {
+  return points.map((point) => ({
+    date: new Date(point.time * 1000),
+    value: point.value,
+    sourcePoint: point
+  }));
 }
 
 /** Reads chart hover state from inside the chart tree and notifies the parent via effect. */
@@ -178,49 +134,29 @@ export function PortfolioChart({
   onHoverChange?: (hover: PortfolioChartHover) => void;
 }) {
   const [activeLabel, setActiveLabel] = useState("1d");
-  const [chartType, setChartType] = useState<ChartType>("area");
   const activeRange = chartOptions.find((option) => option.label === activeLabel)?.range ?? "1d";
   const points = useMemo(() => seriesByRange[activeRange] ?? [], [activeRange, seriesByRange]);
   const firstValue = points[0]?.value ?? null;
 
-  const buckets = useMemo(() => bucketPoints(points, 48), [points]);
+  const chartPoints = useMemo(() => toChartPoints(points), [points]);
 
   useEffect(() => {
     onHoverChange?.(null);
-  }, [activeRange, chartType, onHoverChange]);
+  }, [activeRange, onHoverChange]);
 
   const hasData = points.length > 0;
 
-  const axisFormatter = useMemo(() => axisFormatterForRange(activeRange, buckets), [activeRange, buckets]);
+  const axisFormatter = useMemo(() => axisFormatterForRange(activeRange, chartPoints), [activeRange, chartPoints]);
 
   const tooltipContent = ({ point }: { point: Record<string, unknown> }) => {
-    const bucket = point as unknown as Bucket;
+    const chartPoint = point as unknown as ChartPoint;
     return (
       <div style={{ padding: "8px 12px" }}>
         <div className="tabular" style={{ fontWeight: 650, fontSize: 13 }}>
-          {fmtUsd(bucket.value)}
+          {fmtUsd(chartPoint.value)}
         </div>
-        <div style={{ fontSize: 12, color: "var(--color-neutral)" }}>{hoverLabel(bucket.sourcePoint.time, activeRange)}</div>
-      </div>
-    );
-  };
-
-  const candleTooltipContent = ({ point }: { point: Record<string, unknown> }) => {
-    const bucket = point as unknown as Bucket;
-    return (
-      <div style={{ padding: "8px 12px" }}>
-        <div className="tabular" style={{ fontSize: 12, display: "grid", gridTemplateColumns: "auto auto", gap: "2px 10px" }}>
-          <span style={{ color: "var(--color-neutral)" }}>Open</span>
-          <span style={{ fontWeight: 650 }}>{fmtUsd(bucket.open)}</span>
-          <span style={{ color: "var(--color-neutral)" }}>High</span>
-          <span style={{ fontWeight: 650 }}>{fmtUsd(bucket.high)}</span>
-          <span style={{ color: "var(--color-neutral)" }}>Low</span>
-          <span style={{ fontWeight: 650 }}>{fmtUsd(bucket.low)}</span>
-          <span style={{ color: "var(--color-neutral)" }}>Close</span>
-          <span style={{ fontWeight: 650 }}>{fmtUsd(bucket.close)}</span>
-        </div>
-        <div style={{ fontSize: 12, color: "var(--color-neutral)", marginTop: 4 }}>
-          {hoverLabel(bucket.sourcePoint.time, activeRange)}
+        <div style={{ fontSize: 12, color: "var(--color-neutral)" }}>
+          {hoverLabel(chartPoint.sourcePoint.time, activeRange)}
         </div>
       </div>
     );
@@ -231,43 +167,18 @@ export function PortfolioChart({
       <div className="portfolio-chart-header">
         <p className="section-label">Portfolio chart</p>
         <SegmentedTabs options={chartOptions.map((option) => option.label)} value={activeLabel} onChange={setActiveLabel} />
-        <SegmentedTabs options={[...chartTypeOptions]} value={chartType} onChange={(value) => setChartType(value as ChartType)} />
       </div>
       <div className="portfolio-chart-wrap">
         {hasData ? (
           <div className="bk-chart">
-            {chartType === "area" ? (
-              <AreaChart data={buckets} xDataKey="date" style={{ height: 380 }} yDomainMode="data">
-                <Grid />
-                <Area dataKey="value" stroke={portfolioChartBlue} fill={portfolioChartBlue} />
-                <XAxis formatLabel={axisFormatter} />
-                <YAxis formatValue={fmtCompactUsd} />
-                <ChartTooltip content={tooltipContent} />
-                <HoverBridge activeRange={activeRange} firstValue={firstValue} onHoverChange={onHoverChange} />
-              </AreaChart>
-            ) : null}
-            {chartType === "bars" ? (
-              <div className="bk-chart-fixed-height">
-                <BarChart data={buckets} xDataKey="date">
-                  <Grid />
-                  <Bar dataKey="value" fill={portfolioChartBlue} lineCap={2} />
-                  <XAxis formatLabel={axisFormatter} />
-                  <YAxis formatValue={fmtCompactUsd} />
-                  <ChartTooltip content={tooltipContent} />
-                  <HoverBridge activeRange={activeRange} firstValue={firstValue} onHoverChange={onHoverChange} />
-                </BarChart>
-              </div>
-            ) : null}
-            {chartType === "candles" ? (
-              <CandlestickChart data={buckets} xDataKey="date" style={{ height: 380 }}>
-                <Grid />
-                <Candlestick />
-                <XAxis formatLabel={axisFormatter} />
-                <YAxis formatValue={fmtCompactUsd} />
-                <ChartTooltip content={candleTooltipContent} />
-                <HoverBridge activeRange={activeRange} firstValue={firstValue} onHoverChange={onHoverChange} />
-              </CandlestickChart>
-            ) : null}
+            <AreaChart data={chartPoints} xDataKey="date" style={{ height: 380 }} yDomainMode="data">
+              <Grid />
+              <Area dataKey="value" stroke={portfolioChartBlue} fill={portfolioChartBlue} />
+              <XAxis formatLabel={axisFormatter} />
+              <YAxis formatValue={fmtCompactUsd} />
+              <ChartTooltip content={tooltipContent} />
+              <HoverBridge activeRange={activeRange} firstValue={firstValue} onHoverChange={onHoverChange} />
+            </AreaChart>
           </div>
         ) : (
           <div className="chart portfolio-chart" aria-label="Portfolio value chart" />

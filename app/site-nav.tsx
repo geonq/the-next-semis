@@ -4,6 +4,7 @@ import Link from "next/link";
 import { HalfMoon, SunLight, UserCircle, UserXmark } from "iconoir-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { motion } from "motion/react";
 
 const navItems = [
   { href: "/", label: "Overview" },
@@ -48,6 +49,13 @@ export function SiteNav() {
             return (
               <Link className={active ? "active" : ""} href={item.href} key={item.href}>
                 {item.label}
+                {active ? (
+                  <motion.span
+                    className="nav-active-indicator"
+                    layoutId="nav-active-indicator"
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  />
+                ) : null}
               </Link>
             );
           })}

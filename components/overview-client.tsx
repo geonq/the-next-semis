@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { fmtSignedPct, fmtSignedUsd, fmtUsd, signClass } from "@/lib/format";
+import { useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import NumberFlow from "@number-flow/react";
+import { fmtSignedPct, fmtSignedUsd, signClass } from "@/lib/format";
 import { accountSummary, enrichPositions, enrichRealizedPnl, movers } from "@/lib/portfolio";
 import type {
   BitstampPerpQuotesByMarket,
@@ -14,6 +16,21 @@ import type {
 import { PortfolioChart, type PortfolioChartHover } from "./portfolio-chart";
 import { useLiveQuotes } from "./use-live-quotes";
 import { useLivePerpQuotes } from "./use-live-perp-quotes";
+
+const usdFormat = { style: "currency" as const, currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 };
+
+/** Fade + ~10px rise entrance, staggered by section index. Collapses to instant under reduced motion. */
+function useEntrance(index: number) {
+  const reduced = useReducedMotion();
+  if (reduced) {
+    return { initial: false as const, animate: { opacity: 1, y: 0 } };
+  }
+  return {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.35, ease: "easeOut" as const, delay: index * 0.05 }
+  };
+}
 
 export function OverviewClient({
   positions,
@@ -50,11 +67,22 @@ export function OverviewClient({
   const displayedChangePct = chartHover ? chartHover.changePct : summary.day_change_percent;
   const displayedLabel = chartHover ? chartHover.label : "today";
 
+  const heroEntrance = useEntrance(0);
+  const chartEntrance = useEntrance(1);
+  const moversEntrance = useEntrance(2);
+
   return (
     <div className="stack-xl">
-      <section>
+      <motion.section {...heroEntrance}>
         <div className="summary-line">
-          <RollingPortfolioValue value={displayedValue} />
+          <NumberFlow
+            className="hero-number tabular portfolio-hero-number"
+            value={displayedValue}
+            locales="en-US"
+            format={usdFormat}
+            transformTiming={{ duration: 400, easing: "ease-out" }}
+            spinTiming={{ duration: 400, easing: "ease-out" }}
+          />
           <div className="summary-delta">
             <span className={`tabular ${signClass(displayedChange)}`}>
               {fmtSignedUsd(displayedChange)}
@@ -65,11 +93,13 @@ export function OverviewClient({
             <span className="muted">{displayedLabel}</span>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      <PortfolioChart seriesByRange={chartSeries} onHoverChange={setChartHover} />
+      <motion.div {...chartEntrance}>
+        <PortfolioChart seriesByRange={chartSeries} onHoverChange={setChartHover} />
+      </motion.div>
 
-      <section className="hairline">
+      <motion.section className="hairline" {...moversEntrance}>
         <div className="two-col">
           <MoverColumn
             title="Top Gainers"
@@ -84,26 +114,8 @@ export function OverviewClient({
             emptyText="No positions moved lower today."
           />
         </div>
-      </section>
+      </motion.section>
     </div>
-  );
-}
-
-function RollingPortfolioValue({ value }: { value: number }) {
-  const previous = useRef(value);
-  const [direction, setDirection] = useState<"roll-up" | "roll-down">("roll-up");
-  const valueKey = Math.round(value * 100);
-
-  useEffect(() => {
-    if (value === previous.current) return;
-    setDirection(value > previous.current ? "roll-up" : "roll-down");
-    previous.current = value;
-  }, [value]);
-
-  return (
-    <span key={valueKey} className={`hero-number tabular portfolio-hero-number ${direction}`}>
-      {fmtUsd(value)}
-    </span>
   );
 }
 

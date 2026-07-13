@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { motion, useReducedMotion } from "motion/react";
 import { capitalizeFirst, fmtAbs, fmtSignedPct, signClass } from "@/lib/format";
 import { enrichWatchlist } from "@/lib/research";
 import type { QuotesByTicker, SavedItem, WatchlistEntry } from "@/lib/types";
@@ -11,6 +12,31 @@ import { ReadingList } from "./reading-list";
 import { SegmentedTabs } from "./segmented-tabs";
 import { TickerAutocomplete } from "./ticker-autocomplete";
 import { useLiveQuotes } from "./use-live-quotes";
+
+const MAX_STAGGER_INDEX = 10;
+
+/** Fade + ~10px rise entrance, staggered by grid position. Plays once on mount only
+ * (capped stagger + `useRef` mount guard) — filter changes never replay it. */
+function useCardEntrance() {
+  const reduced = useReducedMotion();
+  const playedRef = useRef(false);
+  const shouldAnimate = !playedRef.current;
+
+  useEffect(() => {
+    playedRef.current = true;
+  }, []);
+
+  return (index: number) => {
+    if (reduced || !shouldAnimate) {
+      return { initial: false as const, animate: { opacity: 1, y: 0 } };
+    }
+    return {
+      initial: { opacity: 0, y: 10 },
+      animate: { opacity: 1, y: 0 },
+      transition: { duration: 0.35, ease: "easeOut" as const, delay: Math.min(index, MAX_STAGGER_INDEX) * 0.05 }
+    };
+  };
+}
 
 type AssetType = "equity" | "etf" | "crypto";
 type AssetClass = "stock" | "crypto";
@@ -37,6 +63,7 @@ export function ResearchClient({
   const [activeThemes, setActiveThemes] = useState<Set<string>>(new Set());
   const [conviction, setConviction] = useState("All");
   const enriched = enrichWatchlist(entries, quotes);
+  const cardEntrance = useCardEntrance();
 
   const visible = useMemo(() => {
     return enriched.filter((entry) => {
@@ -71,8 +98,8 @@ export function ResearchClient({
       </div>
 
       <div className="research-grid">
-        {visible.map((entry) => (
-          <div className="research-card-wrap" key={entry.ticker}>
+        {visible.map((entry, index) => (
+          <motion.div className="research-card-wrap" key={entry.ticker} {...cardEntrance(index)}>
             <Link className="research-card" href={`/research/${entry.ticker}`}>
               <div className="card-top">
                 <div>
@@ -120,7 +147,7 @@ export function ResearchClient({
                 ✕
               </button>
             ) : null}
-          </div>
+          </motion.div>
         ))}
         {visible.length === 0 ? <p className="muted">No entries match the active filters.</p> : null}
       </div>
