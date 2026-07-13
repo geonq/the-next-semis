@@ -895,6 +895,7 @@ ol {
 .chart-section {
   display: grid;
   gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .chart {
@@ -909,6 +910,7 @@ ol {
 .portfolio-chart-section {
   display: grid;
   gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .portfolio-chart-header {
@@ -934,32 +936,6 @@ ol {
 
 .portfolio-chart-wrap {
   position: relative;
-}
-
-.portfolio-chart-tooltip {
-  align-items: center;
-  background: color-mix(in srgb, var(--color-bg) 88%, var(--color-fg) 12%);
-  border: 1px solid var(--color-grid);
-  border-radius: 999px;
-  box-shadow: 0 10px 30px color-mix(in srgb, #000 26%, transparent);
-  color: var(--color-fg);
-  display: flex;
-  font-size: 12px;
-  font-weight: 650;
-  gap: 8px;
-  left: 0;
-  padding: 7px 10px;
-  pointer-events: none;
-  position: absolute;
-  top: 12px;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  z-index: 3;
-}
-
-.portfolio-chart-tooltip span:last-child {
-  color: var(--color-neutral);
-  font-weight: 600;
 }
 
 .chart-footnote,
@@ -2193,6 +2169,8 @@ ol {
     align-items: stretch;
     display: grid;
     gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
   }
 
   .portfolio-chart-header .segmented {
@@ -2495,3 +2473,128 @@ ol {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* ==========================================================================
+   Vendored bklit chart components (components/charts/**) — CSS var + utility
+   shim layer. No Tailwind build step in this repo; every literal Tailwind
+   class used inside components/charts/** is re-declared here, scoped under
+   .bk-chart so it cannot leak into the rest of the app.
+   ========================================================================== */
+
+.bk-chart {
+  --foreground: var(--color-fg);
+  --muted-foreground: var(--color-muted);
+  --chart-grid: var(--color-grid);
+  --chart-line-primary: var(--color-accent);
+  --chart-line-secondary: var(--color-neutral);
+  --chart-1: var(--color-accent);
+  --chart-2: var(--color-300);
+  --chart-3: var(--color-500);
+  --chart-4: var(--color-700);
+  --chart-5: var(--color-900);
+  --chart-label: var(--color-muted);
+  --chart-foreground: var(--color-fg);
+  --chart-foreground-muted: var(--color-muted);
+  --chart-background: var(--color-bg);
+  --chart-crosshair: var(--color-grid);
+  --chart-tooltip-background: var(--color-panel);
+  --chart-tooltip-foreground: var(--color-fg);
+  --chart-tooltip-muted: var(--color-muted);
+  --chart-indicator-color: var(--color-accent);
+  --chart-indicator-secondary-color: var(--color-neutral);
+  --chart-marker-background: var(--color-panel);
+  --chart-marker-border: var(--color-grid);
+  --chart-marker-foreground: var(--color-fg);
+  --chart-marker-badge-background: var(--color-accent);
+  --chart-marker-badge-foreground: var(--color-on-accent);
+  --chart-segment-background: var(--color-panel);
+  --chart-segment-line: var(--color-grid);
+  --chart-brush-border: var(--color-grid);
+  --color-red-500: var(--color-loss);
+  --color-emerald-500: var(--color-gain);
+  --color-zinc-500: var(--color-neutral);
+  position: relative;
+  width: 100%;
+}
+
+/* Layout */
+.bk-chart .relative { position: relative; }
+.bk-chart .absolute { position: absolute; }
+.bk-chart .inset-0 { inset: 0; }
+.bk-chart .top-0 { top: 0; }
+.bk-chart .bottom-0 { bottom: 0; }
+.bk-chart .right-0 { right: 0; }
+.bk-chart .left-0 { left: 0; }
+.bk-chart .z-50 { z-index: 50; }
+.bk-chart .flex { display: flex; }
+.bk-chart .flex-col { flex-direction: column; }
+.bk-chart .items-center { align-items: center; }
+.bk-chart .items-end { align-items: flex-end; }
+.bk-chart .justify-center { justify-content: center; }
+.bk-chart .justify-end { justify-content: flex-end; }
+.bk-chart .justify-between { justify-content: space-between; }
+.bk-chart .gap-1 { gap: 4px; }
+.bk-chart .gap-2 { gap: 8px; }
+.bk-chart .gap-4 { gap: 16px; }
+.bk-chart .shrink-0 { flex-shrink: 0; }
+.bk-chart .w-full { width: 100%; }
+.bk-chart .h-2\.5 { height: 10px; }
+.bk-chart .w-2\.5 { width: 10px; }
+.bk-chart .h-6 { height: 24px; }
+.bk-chart .pr-2 { padding-right: 8px; }
+.bk-chart .px-3 { padding-left: 12px; padding-right: 12px; }
+.bk-chart .py-2\.5 { padding-top: 10px; padding-bottom: 10px; }
+.bk-chart .px-4 { padding-left: 16px; padding-right: 16px; }
+.bk-chart .py-1 { padding-top: 4px; padding-bottom: 4px; }
+.bk-chart .mb-2 { margin-bottom: 8px; }
+.bk-chart .mt-2 { margin-top: 8px; }
+.bk-chart .space-y-1\.5 > * + * { margin-top: 6px; }
+.bk-chart .overflow-hidden { overflow: hidden; }
+.bk-chart .overflow-visible { overflow: visible; }
+.bk-chart .min-w-\[140px\] { min-width: 140px; }
+.bk-chart .rounded-full { border-radius: 999px; }
+.bk-chart .rounded-lg { border-radius: 10px; }
+.bk-chart .shadow-lg { box-shadow: 0 10px 30px color-mix(in srgb, #000 26%, transparent); }
+.bk-chart .backdrop-blur-md { backdrop-filter: blur(12px); }
+.bk-chart .pointer-events-none { pointer-events: none; }
+.bk-chart .whitespace-nowrap { white-space: nowrap; }
+.bk-chart .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk-chart .text-left { text-align: left; }
+.bk-chart .text-right { text-align: right; }
+.bk-chart .text-xs { font-size: 11px; }
+.bk-chart .text-sm { font-size: 13px; }
+.bk-chart .font-medium { font-weight: 600; }
+.bk-chart .tracking-wide { letter-spacing: 0.02em; }
+.bk-chart .tabular-nums { font-variant-numeric: tabular-nums; }
+.bk-chart .transition-opacity { transition-property: opacity; }
+.bk-chart .duration-200 { transition-duration: 200ms; }
+.bk-chart .ease-out { transition-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+
+/* Chart-specific text/background tokens */
+.bk-chart .text-chart-label { color: var(--chart-label); }
+.bk-chart .text-chart-tooltip-foreground { color: var(--chart-tooltip-foreground); }
+.bk-chart .text-chart-tooltip-muted { color: var(--chart-tooltip-muted); }
+.bk-chart .bg-chart-tooltip-background { background-color: var(--chart-tooltip-background); }
+
+/* Date pill (DateTicker) — base is this repo's dark theme (no data-theme attr):
+   dark pill, light text. `dark:` variants in the source fire under an
+   OS/app dark-mode convention this repo doesn't use; here "dark" IS the
+   default, so the un-prefixed classes below already give the correct base
+   look, and the light-theme override only applies under [data-theme="light"]. */
+.bk-chart .bg-zinc-900 { background-color: #18181b; }
+.bk-chart .text-white { color: #fff; }
+html[data-theme="light"] .bk-chart .dark\:bg-zinc-100 { background-color: #f4f4f5; }
+html[data-theme="light"] .bk-chart .dark\:text-zinc-900 { color: #18181b; }
+
+/* BarChart has no `style` prop (unlike AreaChart/CandlestickChart), so its
+   root div only takes an aspect-ratio. This wrapper forces a fixed 380px
+   height instead — the child fills it via height:100%, which overrides the
+   aspect-ratio-derived height since an explicit height takes precedence. */
+.bk-chart-fixed-height {
+  height: 380px;
+}
+
+.bk-chart-fixed-height > div {
+  height: 100%;
+}
+
