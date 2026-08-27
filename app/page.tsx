@@ -4,7 +4,7 @@ import { getCashEntries, getPositions, getRealizedPnl, getWatchlist } from "@/li
 import {
   bitstampPerpMarketSymbol,
   fetchBitstampPerpHistory,
-  fetchBitstampPerpQuotes,
+  fetchBitstampPerpQuotesWithHistory,
   fetchCoinGeckoHistory,
   fetchCoinGeckoQuotes,
   fetchHistory,
@@ -70,12 +70,21 @@ export default async function OverviewPage() {
   const perpMarkets = positions
     .filter((p) => p.assetClass === "perp" && p.bitstamp_market)
     .map((p) => p.bitstamp_market!);
-  const [yahooQuotes, cgQuotes, initialPerpQuotes, chartHistories] = await Promise.all([
+  const [yahooQuotes, cgQuotes, chartHistories] = await Promise.all([
     fetchQuotes(tickers),
     fetchCoinGeckoQuotes(cryptoIds),
-    perpMarkets.length > 0 ? fetchBitstampPerpQuotes(perpMarkets) : Promise.resolve({}),
     fetchPortfolioChartHistories(positions)
   ]);
+  const dayHistoryByMarket = Object.fromEntries(
+    perpMarkets.flatMap((market) => {
+      const normalizedMarket = bitstampPerpMarketSymbol(market);
+      const history = normalizedMarket ? chartHistories["1d"]?.[`perp:${normalizedMarket}`] : undefined;
+      return normalizedMarket && history?.length ? [[normalizedMarket, history] as const] : [];
+    })
+  );
+  const initialPerpQuotes = perpMarkets.length > 0
+    ? await fetchBitstampPerpQuotesWithHistory(perpMarkets, dayHistoryByMarket)
+    : {};
   const quotes = { ...yahooQuotes, ...cgQuotes };
   const chartSeries = buildPortfolioChartSeries({ positions, realizedPnl, cashEntries, histories: chartHistories });
 

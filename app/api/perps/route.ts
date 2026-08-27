@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchBitstampPerpQuotes, isValidBitstampPerpMarket, MAX_PERP_MARKETS } from "@/lib/market";
+import { fetchBitstampPerpQuotesWithHistory, isValidBitstampPerpMarket, MAX_PERP_MARKETS } from "@/lib/market";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -12,5 +12,5 @@ export async function GET(request: Request) {
     )
   ).slice(0, MAX_PERP_MARKETS);
 
-  return NextResponse.json(await fetchBitstampPerpQuotes(markets));
+  return NextResponse.json(await fetchBitstampPerpQuotesWithHistory(markets));
 }

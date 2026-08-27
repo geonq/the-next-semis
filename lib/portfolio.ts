@@ -44,6 +44,8 @@ export function enrichPositions(
         ?? (position.leverage ? (position.shares * entryPrice) / position.leverage : position.shares * entryPrice);
       const totalValue = marginUsed + unrealizedPnl;
       const pnlPercent = marginUsed > 0 ? (unrealizedPnl / marginUsed) * 100 : 0;
+      const dayChange = perpQuote.day_change == null ? null : perpQuote.day_change * direction;
+      const dayChangePercent = perpQuote.day_change_percent == null ? null : perpQuote.day_change_percent * direction;
 
       return {
         ...position,
@@ -53,8 +55,8 @@ export function enrichPositions(
         total_value: totalValue,
         pnl_dollars: unrealizedPnl,
         pnl_percent: pnlPercent,
-        day_change: null,
-        day_change_percent: null,
+        day_change: dayChange,
+        day_change_percent: dayChangePercent,
         funding_rate: perpQuote.funding_rate
       };
     }
@@ -82,10 +84,7 @@ export function enrichPositions(
 export function portfolioSummary(positions: EnrichedPosition[]): PortfolioSummary {
   const withData = positions.filter((position) => position.total_value != null);
   const totalValue = withData.reduce((sum, position) => sum + (position.total_value ?? 0), 0);
-  const dayChangeDollars = withData.reduce((sum, position) => {
-    if (position.assetClass === "perp") return sum;
-    return sum + position.shares * (position.day_change ?? 0);
-  }, 0);
+  const dayChangeDollars = withData.reduce((sum, position) => sum + position.shares * (position.day_change ?? 0), 0);
   const dayChangePercent = totalValue > 0 ? (dayChangeDollars / (totalValue - dayChangeDollars)) * 100 : 0;
 
   return {

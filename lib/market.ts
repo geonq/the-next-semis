@@ -176,8 +176,29 @@ const bitstampHistoryConfig: Record<BitstampHistoryRange, { step: number; limit:
   max: { step: 86400, limit: 1000 }
 };
 
-export async function fetchBitstampPerpQuotes(markets: string[]): Promise<BitstampPerpQuotesByMarket> {
-  const symbols = Array.from(new Set(markets.map((market) => market.trim().toLowerCase()).filter(isValidBitstampPerpMarket))).slice(0, MAX_PERP_MARKETS);
+function normalizeBitstampPerpMarkets(markets: string[]): string[] {
+  return Array.from(new Set(markets.map((market) => market.trim().toLowerCase()).filter(isValidBitstampPerpMarket))).slice(0, MAX_PERP_MARKETS);
+}
+
+export function bitstampPerpDayChange(
+  candles: Candle[],
+  currentPrice: number | null
+): { change: number; percent: number } | null {
+  const referencePrice = candles[0]?.close;
+  if (referencePrice == null || referencePrice <= 0 || currentPrice == null) return null;
+
+  const change = currentPrice - referencePrice;
+  return {
+    change,
+    percent: (change / referencePrice) * 100
+  };
+}
+
+export async function fetchBitstampPerpQuotes(
+  markets: string[],
+  dayHistoryByMarket: Record<string, Candle[]> = {}
+): Promise<BitstampPerpQuotesByMarket> {
+  const symbols = normalizeBitstampPerpMarkets(markets);
   if (symbols.length === 0) return {};
 
   const pairs = await Promise.all(
@@ -201,14 +222,17 @@ export async function fetchBitstampPerpQuotes(markets: string[]): Promise<Bitsta
           ? bitstampFundingSchema.safeParse(await fundingResponse.json())
           : null;
         const fundingData = funding?.success ? funding.data : {};
+        const last = parseDecimal(ticker.data.last);
+        const markPrice = parseDecimal(ticker.data.mark_price);
+        const dayChange = bitstampPerpDayChange(dayHistoryByMarket[marketSymbol] ?? [], markPrice ?? last);
 
         const quote: BitstampPerpQuote = {
           market_symbol: marketSymbol,
           market: fundingData.market ?? bitstampDisplayMarket(marketSymbol),
-          last: parseDecimal(ticker.data.last),
+          last,
           bid: parseDecimal(ticker.data.bid),
           ask: parseDecimal(ticker.data.ask),
-          mark_price: parseDecimal(ticker.data.mark_price),
+          mark_price: markPrice,
           index_price: parseDecimal(ticker.data.index_price),
           open_interest: parseDecimal(ticker.data.open_interest),
           open_interest_value: parseDecimal(ticker.data.open_interest_value),
@@ -216,6 +240,10 @@ export async function fetchBitstampPerpQuotes(markets: string[]): Promise<Bitsta
           next_funding_time: parseTimestamp(fundingData.next_funding_time),
           timestamp: parseTimestamp(ticker.data.timestamp ?? fundingData.timestamp)
         };
+        if (dayChange) {
+          quote.day_change = dayChange.change;
+          quote.day_change_percent = dayChange.percent;
+        }
 
         return [marketSymbol, quote] as const;
       } catch {
@@ -225,6 +253,23 @@ export async function fetchBitstampPerpQuotes(markets: string[]): Promise<Bitsta
   );
 
   return Object.fromEntries(pairs.filter((pair): pair is readonly [string, BitstampPerpQuote] => pair != null));
+}
+
+/** Fetches live quotes plus a real 24-hour Bitstamp reference for position summaries. */
+export async function fetchBitstampPerpQuotesWithHistory(
+  markets: string[],
+  existingDayHistoryByMarket: Record<string, Candle[]> = {}
+): Promise<BitstampPerpQuotesByMarket> {
+  const symbols = normalizeBitstampPerpMarkets(markets);
+  const dayHistoryPairs = await Promise.all(
+    symbols.map(async (marketSymbol) => {
+      const existing = existingDayHistoryByMarket[marketSymbol];
+      const history = existing?.length ? existing : await fetchBitstampPerpHistory(marketSymbol, "1d");
+      return [marketSymbol, history] as const;
+    })
+  );
+
+  return fetchBitstampPerpQuotes(symbols, Object.fromEntries(dayHistoryPairs));
 }
 
 /** Fetches real OHLC candles for a Bitstamp perpetual market. */

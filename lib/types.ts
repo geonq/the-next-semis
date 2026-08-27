@@ -113,6 +113,8 @@ export type BitstampPerpQuote = {
   funding_rate: number | null;
   next_funding_time: number | null;
   timestamp: number | null;
+  day_change?: number | null;
+  day_change_percent?: number | null;
 };
 
 export type BitstampPerpQuotesByMarket = Record<string, BitstampPerpQuote>;

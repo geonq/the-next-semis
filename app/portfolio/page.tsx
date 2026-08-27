@@ -3,7 +3,7 @@ import { PortfolioClient } from "@/components/portfolio-client";
 import { verifySession } from "@/lib/auth";
 import { formatCoingeckoParam, trackedCryptoIds, trackedTickers } from "@/lib/data";
 import { getCashEntries, getPositions, getRealizedPnl, getWatchlist } from "@/lib/kv";
-import { fetchBitstampPerpQuotes, fetchCoinGeckoQuotes, fetchQuotes } from "@/lib/market";
+import { fetchBitstampPerpQuotesWithHistory, fetchCoinGeckoQuotes, fetchQuotes } from "@/lib/market";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ export default async function PortfolioPage() {
   const [yahooQuotes, cgQuotes, initialPerpQuotes] = await Promise.all([
     fetchQuotes(tickers),
     fetchCoinGeckoQuotes(cryptoIds),
-    perpMarkets.length > 0 ? fetchBitstampPerpQuotes(perpMarkets) : Promise.resolve({})
+    perpMarkets.length > 0 ? fetchBitstampPerpQuotesWithHistory(perpMarkets) : Promise.resolve({})
   ]);
   const quotes = { ...yahooQuotes, ...cgQuotes };
 

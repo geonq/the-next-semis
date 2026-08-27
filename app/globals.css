@@ -32,6 +32,8 @@ html[data-theme="light"] {
   --color-grid: #d5e3f5;
   --color-accent: #0253c4;
   --color-on-accent: #f0f6ff;
+  --color-gain: #047857;
+  --color-loss: #b42318;
   --color-panel: #ffffff;
 }
 
@@ -2645,5 +2647,4 @@ ol {
 .bk-chart .text-white { color: #fff; }
 html[data-theme="light"] .bk-chart .dark\:bg-zinc-100 { background-color: #f4f4f5; }
 html[data-theme="light"] .bk-chart .dark\:text-zinc-900 { color: #18181b; }
-
 

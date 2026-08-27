@@ -13,7 +13,7 @@ import {
   realizedPnlSummary,
   weightedAverageCost
 } from "@/lib/portfolio";
-import type { CashEntry, Position, QuotesByTicker, RealizedPnlEntry } from "@/lib/types";
+import type { BitstampPerpQuotesByMarket, CashEntry, Position, QuotesByTicker, RealizedPnlEntry } from "@/lib/types";
 
 const positions: Position[] = [
   { ticker: "NVDA", company: "NVIDIA", shares: 10, average_cost: 100, currency: "USD", sector: "Semis" },
@@ -127,6 +127,76 @@ describe("portfolio calculations", () => {
     expect(summary.total_value).toBe(1650);
     expect(summary.day_change_dollars).toBe(20);
     expect(summary.day_change_percent).toBeCloseTo(1.227, 3);
+  });
+
+  it("includes signed Bitstamp perp movement in today's summary", () => {
+    const perpPositions: Position[] = [
+      {
+        ticker: "BTC",
+        company: "Bitcoin Perp",
+        assetClass: "perp",
+        shares: 1,
+        average_cost: 100,
+        margin_used: 20,
+        side: "long",
+        bitstamp_market: "btcusd-perp",
+        currency: "USD",
+        sector: "Crypto"
+      },
+      {
+        ticker: "ETH",
+        company: "Ethereum Perp",
+        assetClass: "perp",
+        shares: 1,
+        average_cost: 100,
+        margin_used: 20,
+        side: "short",
+        bitstamp_market: "ethusd-perp",
+        currency: "USD",
+        sector: "Crypto"
+      }
+    ];
+    const perpQuotes: BitstampPerpQuotesByMarket = {
+      "btcusd-perp": {
+        market_symbol: "btcusd-perp",
+        market: "BTC/USD-PERP",
+        last: 110,
+        bid: 109,
+        ask: 111,
+        mark_price: 110,
+        index_price: 110,
+        open_interest: null,
+        open_interest_value: null,
+        funding_rate: null,
+        next_funding_time: null,
+        timestamp: null,
+        day_change: 10,
+        day_change_percent: 10
+      },
+      "ethusd-perp": {
+        market_symbol: "ethusd-perp",
+        market: "ETH/USD-PERP",
+        last: 90,
+        bid: 89,
+        ask: 91,
+        mark_price: 90,
+        index_price: 90,
+        open_interest: null,
+        open_interest_value: null,
+        funding_rate: null,
+        next_funding_time: null,
+        timestamp: null,
+        day_change: -10,
+        day_change_percent: -10
+      }
+    };
+    const enriched = enrichPositions(perpPositions, {}, perpQuotes);
+    const summary = portfolioSummary(enriched);
+
+    expect(enriched.map((position) => position.day_change)).toEqual([10, 10]);
+    expect(summary.total_value).toBe(60);
+    expect(summary.day_change_dollars).toBe(20);
+    expect(summary.day_change_percent).toBeCloseTo(50, 5);
   });
 
   it("filters movers by positive and negative day-change direction", () => {

@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  bitstampPerpDayChange,
   fetchBitstampPerpHistory,
+  fetchBitstampPerpQuotes,
   fetchHistory,
   fetchQuoteDetails,
   fetchQuotes,
@@ -98,6 +100,46 @@ describe("market data helpers", () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain("/api/v2/ohlc/btcusd-perp/");
     expect(String(fetchMock.mock.calls[0][0])).toContain("step=300");
     expect(String(fetchMock.mock.calls[0][0])).toContain("limit=288");
+  });
+
+  it("calculates a perp's 24-hour move from the oldest real candle to the live mark", () => {
+    expect(bitstampPerpDayChange([
+      { time: 1, open: 100, high: 105, low: 95, close: 100 },
+      { time: 2, open: 120, high: 125, low: 115, close: 120 }
+    ], 130)).toEqual({ change: 30, percent: 30 });
+  });
+
+  it("adds the Bitstamp 24-hour move to live perp quotes", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        market_type: "PERPETUAL",
+        last: "129",
+        bid: "128",
+        ask: "130",
+        mark_price: "130",
+        index_price: "130",
+        open_interest: "10",
+        open_interest_value: "1300",
+        timestamp: "100"
+      }))
+      .mockResolvedValueOnce(Response.json({
+        funding_rate: "0.001",
+        next_funding_time: "200",
+        market: "BTC/USD-PERP"
+      }));
+
+    await expect(fetchBitstampPerpQuotes(["btcusd-perp"], {
+      "btcusd-perp": [
+        { time: 1, open: 100, high: 105, low: 95, close: 100 },
+        { time: 2, open: 120, high: 125, low: 115, close: 120 }
+      ]
+    })).resolves.toMatchObject({
+      "btcusd-perp": {
+        mark_price: 130,
+        day_change: 30,
+        day_change_percent: 30
+      }
+    });
   });
 
   it("refreshes 1d chart history on the live quote cadence", async () => {
