@@ -152,6 +152,30 @@ const bitstampFundingSchema = z.object({
   next_funding_time: z.string().optional()
 });
 
+const bitstampOhlcRowSchema = z.object({
+  timestamp: z.union([z.string(), z.number()]),
+  open: z.union([z.string(), z.number()]),
+  high: z.union([z.string(), z.number()]),
+  low: z.union([z.string(), z.number()]),
+  close: z.union([z.string(), z.number()])
+});
+
+const bitstampOhlcResponseSchema = z.object({
+  data: z.object({
+    ohlc: z.array(bitstampOhlcRowSchema)
+  })
+});
+
+type BitstampHistoryRange = "1d" | "5d" | "1mo" | "1y" | "max";
+
+const bitstampHistoryConfig: Record<BitstampHistoryRange, { step: number; limit: number }> = {
+  "1d": { step: 300, limit: 288 },
+  "5d": { step: 900, limit: 480 },
+  "1mo": { step: 3600, limit: 720 },
+  "1y": { step: 86400, limit: 365 },
+  max: { step: 86400, limit: 1000 }
+};
+
 export async function fetchBitstampPerpQuotes(markets: string[]): Promise<BitstampPerpQuotesByMarket> {
   const symbols = Array.from(new Set(markets.map((market) => market.trim().toLowerCase()).filter(isValidBitstampPerpMarket))).slice(0, MAX_PERP_MARKETS);
   if (symbols.length === 0) return {};
@@ -201,6 +225,46 @@ export async function fetchBitstampPerpQuotes(markets: string[]): Promise<Bitsta
   );
 
   return Object.fromEntries(pairs.filter((pair): pair is readonly [string, BitstampPerpQuote] => pair != null));
+}
+
+/** Fetches real OHLC candles for a Bitstamp perpetual market. */
+export async function fetchBitstampPerpHistory(market: string, range: string = "1mo"): Promise<Candle[]> {
+  const marketSymbol = bitstampPerpMarketSymbol(market);
+  if (!marketSymbol) return [];
+
+  const config = bitstampHistoryConfig[range as BitstampHistoryRange] ?? bitstampHistoryConfig["1mo"];
+  const params = new URLSearchParams({
+    step: String(config.step),
+    limit: String(config.limit),
+    exclude_current_candle: "false"
+  });
+
+  try {
+    const response = await fetch(`${bitstampBase}/api/v2/ohlc/${encodeURIComponent(marketSymbol)}/?${params}`, {
+      headers: { accept: "application/json" },
+      next: { revalidate: range === "1d" ? 30 : 300 }
+    });
+    if (!response.ok) return [];
+
+    const parsed = bitstampOhlcResponseSchema.safeParse(await response.json());
+    if (!parsed.success) return [];
+
+    const candles = parsed.data.data.ohlc.flatMap((row): Candle[] => {
+      const time = parseTimestamp(row.timestamp);
+      const open = parseDecimal(row.open);
+      const high = parseDecimal(row.high);
+      const low = parseDecimal(row.low);
+      const close = parseDecimal(row.close);
+      if (time == null || open == null || high == null || low == null || close == null) return [];
+      return [{ time, open, high, low, close }];
+    });
+
+    return Array.from(new Map(candles.map((candle) => [candle.time, candle])).values()).sort(
+      (a, b) => a.time - b.time
+    );
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchQuotes(tickers: string[]): Promise<QuotesByTicker> {
@@ -644,15 +708,15 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === "number" ? value : null;
 }
 
-function parseDecimal(value: string | undefined): number | null {
+function parseDecimal(value: string | number | undefined): number | null {
   if (value == null) return null;
-  const parsed = Number.parseFloat(value);
+  const parsed = typeof value === "number" ? value : Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parseTimestamp(value: string | undefined): number | null {
+function parseTimestamp(value: string | number | undefined): number | null {
   if (value == null) return null;
-  const parsed = Number.parseInt(value, 10);
+  const parsed = typeof value === "number" ? value : Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : null;
 }
 

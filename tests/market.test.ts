@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  fetchBitstampPerpHistory,
   fetchHistory,
   fetchQuoteDetails,
   fetchQuotes,
@@ -75,6 +76,28 @@ describe("market data helpers", () => {
     );
 
     await expect(fetchHistory("NVDA", "10y")).resolves.toEqual([{ time: 1, open: 10, high: 12, low: 9, close: 11 }]);
+  });
+
+  it("parses and orders Bitstamp perpetual OHLC history", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        data: {
+          ohlc: [
+            { timestamp: "2", open: "20", high: "22", low: "19", close: "21" },
+            { timestamp: "1", open: "10", high: "12", low: "9", close: "11" },
+            { timestamp: "2", open: "20", high: "23", low: "19", close: "22" }
+          ]
+        }
+      })
+    );
+
+    await expect(fetchBitstampPerpHistory("BTCUSD-PERP", "1d")).resolves.toEqual([
+      { time: 1, open: 10, high: 12, low: 9, close: 11 },
+      { time: 2, open: 20, high: 23, low: 19, close: 22 }
+    ]);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/api/v2/ohlc/btcusd-perp/");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("step=300");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("limit=288");
   });
 
   it("refreshes 1d chart history on the live quote cadence", async () => {

@@ -1,10 +1,19 @@
 import { OverviewClient } from "@/components/overview-client";
 import { formatCoingeckoParam, trackedCryptoIds, trackedTickers } from "@/lib/data";
 import { getCashEntries, getPositions, getRealizedPnl, getWatchlist } from "@/lib/kv";
-import { fetchBitstampPerpQuotes, fetchCoinGeckoHistory, fetchCoinGeckoQuotes, fetchHistory, fetchQuotes } from "@/lib/market";
+import {
+  bitstampPerpMarketSymbol,
+  fetchBitstampPerpHistory,
+  fetchBitstampPerpQuotes,
+  fetchCoinGeckoHistory,
+  fetchCoinGeckoQuotes,
+  fetchHistory,
+  fetchQuotes
+} from "@/lib/market";
 import {
   buildPortfolioChartSeries,
   historySourceForPortfolioRange,
+  portfolioHistoryKey,
   portfolioChartRanges,
   type PortfolioChartHistoryRange,
   type PortfolioChartHistories
@@ -14,7 +23,7 @@ import type { Candle, Position } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 async function fetchPortfolioChartHistories(positions: Position[]): Promise<PortfolioChartHistories> {
-  const active = positions.filter((position) => position.assetClass !== "perp" && position.shares > 0);
+  const active = positions.filter((position) => position.shares > 0);
   const ranges = Array.from(new Set(portfolioChartRanges.map(historySourceForPortfolioRange)));
   const histories: PortfolioChartHistories = {};
 
@@ -23,7 +32,12 @@ async function fetchPortfolioChartHistories(positions: Position[]): Promise<Port
       const entries = await Promise.all(
         active.map(async (position): Promise<[string, Candle[]]> => {
           let history: Candle[];
-          if (position.coinGeckoId) {
+          let historyPosition = position;
+          if (position.assetClass === "perp") {
+            const market = bitstampPerpMarketSymbol(position.ticker, position.bitstamp_market);
+            history = market ? await fetchBitstampPerpHistory(market, range) : [];
+            if (market) historyPosition = { ...position, bitstamp_market: market };
+          } else if (position.coinGeckoId) {
             if (range === "1d") {
               history = await fetchCoinGeckoHistory(position.coinGeckoId, range);
               if (history.length === 0) history = await fetchHistory(position.ticker, range);
@@ -33,7 +47,7 @@ async function fetchPortfolioChartHistories(positions: Position[]): Promise<Port
           } else {
             history = await fetchHistory(position.ticker, range);
           }
-          return [position.ticker, history];
+          return [portfolioHistoryKey(historyPosition), history];
         })
       );
       histories[range as PortfolioChartHistoryRange] = Object.fromEntries(entries);

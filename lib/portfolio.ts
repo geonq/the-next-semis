@@ -192,6 +192,16 @@ export type PortfolioChartHistoryRange = "1d" | "5d" | "1mo" | "1y" | "max";
 
 export type PortfolioChartHistories = Partial<Record<PortfolioChartHistoryRange, Record<string, Candle[]>>>;
 
+/** Keeps perp candles separate from same-ticker spot/equity candles. */
+export function portfolioHistoryKey(
+  position: Pick<Position, "ticker" | "assetClass" | "bitstamp_market">
+): string {
+  if (position.assetClass === "perp") {
+    return `perp:${(position.bitstamp_market ?? position.ticker).trim().toLowerCase()}`;
+  }
+  return position.ticker;
+}
+
 const secondsPerDay = 24 * 60 * 60;
 
 function startOfUtcYear(timestamp: number): number {
@@ -265,7 +275,7 @@ function dateToUtcSeconds(date: string): number | null {
 }
 
 function isHistoricalPosition(position: Position): boolean {
-  return position.assetClass !== "perp" && position.shares > 0;
+  return position.shares > 0;
 }
 
 function positionCostBasis(position: Position): number {
@@ -327,7 +337,10 @@ export function buildPortfolioChartSeries({
         .map((position) => ({
           position,
           entryTime: position.entry_date ? dateToUtcSeconds(position.entry_date) : null,
-          history: (sourceHistories[position.ticker] ?? []).filter((candle) => candle.time <= now)
+          // Fall back to the ticker key for compatibility with existing callers/tests.
+          history: (sourceHistories[portfolioHistoryKey(position)] ?? sourceHistories[position.ticker] ?? []).filter(
+            (candle) => candle.time <= now
+          )
         }));
       let start: number;
       let rangeEnd: number;
@@ -373,8 +386,8 @@ export function buildPortfolioChartSeries({
       times.add(rangeEnd);
 
       const sortedTimes = Array.from(times).sort((a, b) => a - b);
-      const lastCloseByTicker = new Map<string, number>();
-      const historyIndexByTicker = new Map<string, number>();
+      const lastCloseByHistoryKey = new Map<string, number>();
+      const historyIndexByHistoryKey = new Map<string, number>();
       let realizedIndex = 0;
       let cumulativeRealized = 0;
       let cashIndex = 0;
@@ -404,18 +417,29 @@ export function buildPortfolioChartSeries({
           let activeValue = 0;
           let activeUnrealizedPnl = 0;
           for (const { position, entryTime, history } of positionsWithEntryTime) {
-            let index = historyIndexByTicker.get(position.ticker) ?? 0;
+            const historyKey = portfolioHistoryKey(position);
+            let index = historyIndexByHistoryKey.get(historyKey) ?? 0;
             while (index < history.length && history[index].time <= time) {
-              lastCloseByTicker.set(position.ticker, history[index].close);
+              lastCloseByHistoryKey.set(historyKey, history[index].close);
               index += 1;
             }
-            historyIndexByTicker.set(position.ticker, index);
+            historyIndexByHistoryKey.set(historyKey, index);
 
             if (entryTime != null && time < entryTime) continue;
-            const close = lastCloseByTicker.get(position.ticker);
+            const close = lastCloseByHistoryKey.get(historyKey);
             if (close == null) continue;
-            activeValue += position.shares * close;
-            activeUnrealizedPnl += position.shares * (close - (position.average_cost_usd ?? position.average_cost));
+            const costBasis = position.average_cost_usd ?? position.average_cost;
+            if (position.assetClass === "perp") {
+              const direction = position.side === "short" ? -1 : 1;
+              const marginUsed = position.margin_used
+                ?? (position.leverage ? (position.shares * costBasis) / position.leverage : position.shares * costBasis);
+              const unrealizedPnl = position.shares * (close - costBasis) * direction;
+              activeValue += marginUsed + unrealizedPnl;
+              activeUnrealizedPnl += unrealizedPnl;
+            } else {
+              activeValue += position.shares * close;
+              activeUnrealizedPnl += position.shares * (close - costBasis);
+            }
           }
 
           const value = hasCashLedger

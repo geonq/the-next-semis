@@ -280,6 +280,58 @@ describe("portfolio calculations", () => {
     expect(series["1d"].length).toBeGreaterThanOrEqual(3);
   });
 
+  it("builds a portfolio chart from perp history with long and short margin equity", () => {
+    const first = Date.UTC(2026, 0, 12, 10) / 1000;
+    const last = Date.UTC(2026, 0, 12, 11) / 1000;
+    const series = buildPortfolioChartSeries({
+      positions: [
+        {
+          ticker: "BTC",
+          company: "Bitcoin Perp",
+          assetClass: "perp",
+          shares: 1,
+          average_cost: 100,
+          margin_used: 20,
+          side: "long",
+          bitstamp_market: "btcusd-perp",
+          currency: "USD",
+          sector: "Crypto"
+        },
+        {
+          ticker: "ETH",
+          company: "Ethereum Perp",
+          assetClass: "perp",
+          shares: 1,
+          average_cost: 100,
+          margin_used: 20,
+          side: "short",
+          bitstamp_market: "ethusd-perp",
+          currency: "USD",
+          sector: "Crypto"
+        }
+      ],
+      realizedPnl: [],
+      now: last,
+      histories: {
+        "1d": {
+          "perp:btcusd-perp": [
+            { time: first, open: 100, high: 100, low: 100, close: 100 },
+            { time: last, open: 110, high: 110, low: 110, close: 110 }
+          ],
+          "perp:ethusd-perp": [
+            { time: first, open: 100, high: 100, low: 100, close: 100 },
+            { time: last, open: 90, high: 90, low: 90, close: 90 }
+          ]
+        }
+      }
+    });
+
+    expect(series["1d"]).toEqual([
+      { time: first, value: 40, active_value: 40, realized_pnl: 0 },
+      { time: last, value: 60, active_value: 60, realized_pnl: 0 }
+    ]);
+  });
+
   it("keeps a ytd zero baseline until the first real portfolio data point", () => {
     const jan1 = Date.UTC(2026, 0, 1) / 1000;
     const june5 = Date.UTC(2026, 5, 5) / 1000;
