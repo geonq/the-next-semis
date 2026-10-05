@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, Manrope } from "next/font/google";
 import "./globals.css";
 import { SiteNav } from "./site-nav";
+import { ShaderBackground } from "@/components/shader-background";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-body", display: "swap" });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-header", display: "swap" });
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       suppressHydrationWarning
     >
       <body>
+        <ShaderBackground />
         <SiteNav />
         <main className="shell">{children}</main>
         <footer className="icon-attribution">

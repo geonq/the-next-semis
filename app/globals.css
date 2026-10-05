@@ -139,7 +139,36 @@ ol {
   margin-block-start: 0;
 }
 
+/* ==========================================================================
+   Shader background (animated WebGL ambient gradient)
+   ========================================================================== */
+.shader-background {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 300ms ease;
+}
+
+.shader-background canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+html[data-theme="light"] .shader-background {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .app-header {
+  position: relative;
+  z-index: 10;
   border-bottom: 1px solid var(--color-grid);
   height: 49px;
 }
@@ -213,6 +242,8 @@ ol {
 
 
 .shell {
+  position: relative;
+  z-index: 1;
   margin: 0 auto;
   max-width: 1280px;
   padding: 56px 24px 96px;
@@ -220,6 +251,8 @@ ol {
 }
 
 .icon-attribution {
+  position: relative;
+  z-index: 1;
   margin: -56px auto 32px;
   max-width: 1280px;
   padding: 0 24px;
