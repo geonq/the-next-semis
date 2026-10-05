@@ -2,8 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, Manrope } from "next/font/google";
 import "./globals.css";
 import { SiteNav } from "./site-nav";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-body", display: "swap" });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-header", display: "swap" });
@@ -35,8 +33,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             Icons by Streamline
           </a>
         </footer>
-        <Analytics />
-        <SpeedInsights />
+        {/* Cloudflare Web Analytics / RUM */}
+        <script
+          defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "492b59270fee40c5a1205ec16035f84d"}'
+        />
       </body>
     </html>
   );
