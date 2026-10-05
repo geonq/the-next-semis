@@ -2,6 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import type { CashEntry, Position, RealizedPnlEntry, WatchlistEntry } from "./types";
+import initialPositions from "../data/positions.json";
+import initialRealizedPnl from "../data/realized_pnl.json";
+import initialCash from "../data/cash.json";
+import initialWatchlist from "../data/watchlist.json";
+import initialSavedItems from "../data/saved_items.json";
 
 export const positionSchema = z.object({
   ticker: z.string().min(1).transform((value) => value.toUpperCase()),
@@ -76,10 +81,24 @@ export const watchlistSchema = z.object({
 
 const dataDir = path.join(process.cwd(), "data");
 
+const staticData: Record<string, unknown> = {
+  "positions.json": initialPositions,
+  "realized_pnl.json": initialRealizedPnl,
+  "cash.json": initialCash,
+  "watchlist.json": initialWatchlist,
+  "saved_items.json": initialSavedItems
+};
+
 async function readJsonArray<T>(fileName: string, schema: z.ZodType<T>): Promise<T[]> {
-  const raw = await fs.readFile(path.join(dataDir, fileName), "utf8");
-  const parsed = JSON.parse(raw);
-  return z.array(schema).parse(parsed);
+  try {
+    const raw = await fs.readFile(path.join(dataDir, fileName), "utf8");
+    const parsed = JSON.parse(raw);
+    return z.array(schema).parse(parsed);
+  } catch {
+    const fallback = staticData[fileName];
+    if (fallback) return z.array(schema).parse(fallback);
+    return [];
+  }
 }
 
 export async function loadPositions(): Promise<Position[]> {
@@ -113,8 +132,12 @@ export function parseCashEntries(data: unknown): CashEntry[] {
 }
 
 export async function loadWatchlist(): Promise<WatchlistEntry[]> {
-  const raw = await fs.readFile(path.join(dataDir, "watchlist.json"), "utf8");
-  return parseWatchlistEntries(JSON.parse(raw));
+  try {
+    const raw = await fs.readFile(path.join(dataDir, "watchlist.json"), "utf8");
+    return parseWatchlistEntries(JSON.parse(raw));
+  } catch {
+    return parseWatchlistEntries(initialWatchlist);
+  }
 }
 
 export function parseWatchlistEntries(data: unknown): WatchlistEntry[] {
@@ -128,7 +151,11 @@ export function parseWatchlistEntries(data: unknown): WatchlistEntry[] {
 }
 
 export async function loadThesis(): Promise<string> {
-  return fs.readFile(path.join(dataDir, "thesis.md"), "utf8");
+  try {
+    return await fs.readFile(path.join(dataDir, "thesis.md"), "utf8");
+  } catch {
+    return "";
+  }
 }
 
 export function trackedTickers(positions: Position[], watchlist: WatchlistEntry[]): string[] {

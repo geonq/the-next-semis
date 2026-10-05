@@ -1,0 +1,26 @@
+{
+  "realized_count": 47,
+  "cash_count": 1,
+  "reward_credits_eur": 50.37,
+  "perp_closed": 23,
+  "spot_closed": 24,
+  "open_perps": {
+    "BTCUSD": [],
+    "SOLUSD": [
+      {
+        "side": "long",
+        "qty": 3.039,
+        "price": 97.729,
+        "opened_at": "2026-08-24"
+      }
+    ],
+    "HYPEUSD": [
+      {
+        "side": "long",
+        "qty": 4.227,
+        "price": 80.207,
+        "opened_at": "2026-08-31"
+      }
+    ]
+  }
+}

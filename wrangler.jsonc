@@ -1,0 +1,37 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"main": ".open-next/worker.js",
+	"name": "the-next-semis",
+	"compatibility_date": "2026-10-05",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"services": [
+		{
+			// Self-reference service binding, the service name must match the worker name
+			// see https://opennext.js.org/cloudflare/caching
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "the-next-semis"
+		}
+	],
+	"images": {
+		// Enable image optimization
+		// see https://opennext.js.org/cloudflare/howtos/image
+		"binding": "IMAGES"
+	},
+	"vars": {
+		"FMP_API_KEY": "2npyowj9XgmvZQX9db8gXTitRJli990l",
+		"ADMIN_USERNAME": "admin",
+		"ADMIN_PASSWORD": "qeQzyh-7kegpo-ropxyx",
+		"JWT_SECRET": "c62fb3be1e224e77bba60d13b432e652a9757659c2b3aa93bf777e38a2e05aa3"
+	},
+	"routes": [
+		{ "pattern": "thenextsemis.geonq.de", "custom_domain": true },
+		{ "pattern": "semis.geonq.de", "custom_domain": true }
+	]
+}

@@ -4,6 +4,8 @@ node_modules/
 out/
 coverage/
 dist/
+.open-next/
+.wrangler/
 *.tsbuildinfo
 *.tgz
 npm-debug.log*

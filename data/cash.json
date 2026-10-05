@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "id": "07f9bb7f-8b4d-4357-bcb3-1930d18ff0f0",
+    "amount": 15.0,
+    "currency": "EUR",
+    "date": "2026-06-12",
+    "note": "Robinhood SEPA Deposit",
+    "amount_usd": 17.3505
+  }
+]
