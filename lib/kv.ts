@@ -6,6 +6,7 @@ import {
   loadCashEntries,
   loadPositions,
   loadRealizedPnl,
+  loadSavedItems,
   loadThesis,
   loadWatchlist,
   parseCashEntries,
@@ -100,14 +101,12 @@ export async function getSavedItems(): Promise<SavedItem[]> {
   const redis = getRedis();
   if (redis) {
     const data = await redis.get("saved_items");
-    return parseSavedItems(data ?? []);
+    if (data) return parseSavedItems(data);
+    const seed = await loadSavedItems();
+    await redis.set("saved_items", seed);
+    return seed;
   }
-  try {
-    const raw = await fs.readFile(path.join(process.cwd(), "data", "saved_items.json"), "utf8");
-    return parseSavedItems(JSON.parse(raw));
-  } catch {
-    return [];
-  }
+  return loadSavedItems();
 }
 
 export async function setPositions(positions: Position[]): Promise<void> {

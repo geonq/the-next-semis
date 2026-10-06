@@ -311,8 +311,7 @@ async function resolveColor(company: string, ticker?: string, globalSignal?: Abo
   const signals: Signal[] = [];
 
   const svg = await fetchSvgLogoColor(page.html, page.baseUrl, globalSignal);
-  if (svg?.mono) return null;
-  if (svg?.color) signals.push({ color: svg.color, confidence: 0.85 });
+  if (!svg?.mono && svg?.color) signals.push({ color: svg.color, confidence: 0.85 });
 
   const manifest = await fetchManifestColor(page.html, page.baseUrl, globalSignal);
   if (manifest) signals.push({ color: manifest, confidence: 0.95 });

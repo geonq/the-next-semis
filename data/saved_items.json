@@ -1,1 +1,85 @@
-[]
+[
+  {
+    "id": "8fa36b70-19ad-4003-9fee-e4ae23472148",
+    "type": "article",
+    "title": "CMPS Stock Rises 23% Pre-Market As Compass Achieves Primary Endpoint In Phase 3 Treatment-Resistant Depression Trial - Stocktwits",
+    "url": "https://news.google.com/rss/articles/CBMizwFBVV95cUxOdkZXUnVmcl9lb3hlbS1DMm1vUEItNVhFbHhzclRaUUItOGFVWVNlQmdiSE81aW1IVWpmVVVuVzhWT0JvbS1VdWRWRkNhQlYxcUVQRzRTQ01pT3pjYTBienJUOVFUME5fcnhwSGdZaGJsampuNlgwLVdxZWxFcTlzZnRSNHZDSGJiR2VqYVk1ZXRuSUpvT1hwZEVwSEVkRnRqcjNIT0xjVk9nMi1LU1RjNGVZbVdaS0FFNGZhMUFvNXZPeGJFYlNWVGlQTVRBZlU?oc=5",
+    "note": "Discovery candidate CMPS. Score 88/100. Catalyst 7.00 pts, source 2.00 pts, risk 0.00 pts. Lag still present: since the catalyst, price is -2.728% over 3 days, near normal range 4.7893%/day. Matched: phase 3.",
+    "theme": "Pharma & Biotech Platforms",
+    "tickers": [
+      "CMPS"
+    ],
+    "addedAt": 1781261556
+  },
+  {
+    "id": "af010a32-e9e9-4b92-a66f-fcfa22a2f979",
+    "type": "article",
+    "title": "Momentum Amidst Tumult: The FDA Reshuffle, Approval Timelines, and the Compass-Usona Race - Psychedelic Alpha",
+    "url": "https://news.google.com/rss/articles/CBMivgFBVV95cUxOTHpZOVBmeERpNHRoalJhUGEzVFFjZHdSaTc0cHduSlNUV3J2QXh2M09zZnIwMElQeFZWZ1dUejVmZE9ZLXRPaUhuSlJ2N2VEWEdBNFZMRzc2dC1GTC1vUzdHZElQNWNCVVZxX2xjOFNsRFM1RDJ2cEpNNlRlVkZBc0t6MWlaQTA4VUk5STJqallVSnFWNDExUUhaZTVtNGY3WWZ4TEFqTTVHQ2RwbVFUT0I2eFZFR3Z0azRRcTlR?oc=5",
+    "note": "Discovery candidate CMPS. Score 88/100. Catalyst 6.00 pts, source 2.00 pts, risk 0.00 pts. Lag still present: since the catalyst, price is -2.728% over 3 days, near normal range 4.7893%/day. Matched: approval.",
+    "theme": "Pharma & Biotech Platforms",
+    "tickers": [
+      "CMPS"
+    ],
+    "addedAt": 1781261556
+  },
+  {
+    "id": "5b2b07b1-db4f-47d2-8a77-8225842776b5",
+    "type": "article",
+    "title": "3 Aerospace Stocks Ready to Ride the Aftermarket Rebound",
+    "url": "https://finance.yahoo.com/m/8624afdb-e914-395b-b927-2d85855fea48/3-aerospace-stocks-ready-to.html",
+    "note": "interesting",
+    "theme": "Defense",
+    "tickers": [
+      "RTX"
+    ],
+    "addedAt": 1781213522
+  },
+  {
+    "id": "a910586e-9fc5-41b9-8f01-cf84b9c09235",
+    "type": "article",
+    "title": "Computer Chips in Our Bodies Could Be the Future of Medicine",
+    "url": "https://time.com/7330887/brain-computer-chips-future-of-medicine/",
+    "theme": "Big Pharma",
+    "tickers": [
+      "FLNC"
+    ],
+    "addedAt": 1780185738
+  },
+  {
+    "id": "a173a8f2-ec75-4db2-b909-f9187e990026",
+    "type": "article",
+    "title": "Cognitive Liberty In The Age Of Neurotechnology: A Legal And Ethical Exploration",
+    "url": "https://www.ijllr.com/post/cognitive-liberty-in-the-age-of-neurotechnology-a-legal-and-ethical-exploration",
+    "note": "ethical arguments about human engineering via robotics",
+    "theme": "Big Pharma",
+    "tickers": [
+      "FLNC"
+    ],
+    "addedAt": 1780185775
+  },
+  {
+    "id": "0dcc8c8b-60ea-427c-a350-30ddf92446e7",
+    "type": "article",
+    "title": "Data Center Solution Deploy Data Center Capacity Faster with Fluence Storage Solutions",
+    "url": "https://fluenceenergy.com/data-center-solution/",
+    "note": "idk man looks right",
+    "theme": "Energy Storage",
+    "tickers": [
+      "FLNC"
+    ],
+    "addedAt": 1780186884
+  },
+  {
+    "id": "797fb8bb-4af1-4aba-84f3-1a8c2946255d",
+    "type": "paper",
+    "title": "Analysis on BYD Current Development and Future Direction",
+    "url": "https://www.researchgate.net/publication/373896225_Analysis_on_BYD_Current_Development_and_Future_Direction",
+    "note": "byd analysis",
+    "theme": "Energy Storage",
+    "tickers": [
+      "1211.HK"
+    ],
+    "addedAt": 1780187143
+  }
+]

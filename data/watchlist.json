@@ -11,7 +11,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#00d4aa"
   },
   {
     "ticker": "AMD",
@@ -23,7 +23,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#ed1c24"
   },
   {
     "ticker": "RHM.DE",
@@ -60,7 +60,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#1054de"
   },
   {
     "ticker": "NVDA",
@@ -106,7 +106,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#005596"
   },
   {
     "ticker": "META",
@@ -119,7 +119,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#0081fb"
   },
   {
     "ticker": "TSLA",
@@ -195,7 +195,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#00a389"
   },
   {
     "ticker": "NXE",
