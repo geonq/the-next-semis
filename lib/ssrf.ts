@@ -81,6 +81,35 @@ export function isPrivateIp(address: string): boolean {
   return true; // unparseable → reject
 }
 
+async function resolveDohIps(host: string): Promise<string[]> {
+  try {
+    const [resA, resAaaa] = await Promise.all([
+      fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=A`, {
+        headers: { accept: "application/dns-json" }
+      }),
+      fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=AAAA`, {
+        headers: { accept: "application/dns-json" }
+      })
+    ]);
+    const ips: string[] = [];
+    if (resA.ok) {
+      const dataA = (await resA.json()) as { Answer?: Array<{ type: number; data: string }> };
+      for (const a of dataA.Answer ?? []) {
+        if (a.type === 1 && typeof a.data === "string") ips.push(a.data);
+      }
+    }
+    if (resAaaa.ok) {
+      const dataAaaa = (await resAaaa.json()) as { Answer?: Array<{ type: number; data: string }> };
+      for (const a of dataAaaa.Answer ?? []) {
+        if (a.type === 28 && typeof a.data === "string") ips.push(a.data);
+      }
+    }
+    return ips;
+  } catch {
+    return [];
+  }
+}
+
 // https/http only, no metadata/internal hostnames, and every resolved IP must be public
 // (defends against a public hostname that points at a private address).
 export async function isSafePublicUrl(rawUrl: string): Promise<boolean> {
@@ -109,6 +138,11 @@ export async function isSafePublicUrl(rawUrl: string): Promise<boolean> {
     const resolved = await dns.lookup(host, { all: true });
     return resolved.length > 0 && resolved.every((entry) => !isPrivateIp(entry.address));
   } catch {
+    // dns.lookup is not implemented in Cloudflare Workers / Edge runtime; fallback to DoH.
+    const dohIps = await resolveDohIps(host);
+    if (dohIps.length > 0) {
+      return dohIps.every((ip) => !isPrivateIp(ip));
+    }
     return false;
   }
 }

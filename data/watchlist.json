@@ -36,7 +36,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#007ec1"
   },
   {
     "ticker": "LMT",
@@ -48,7 +48,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#0267bd"
   },
   {
     "ticker": "PLTR",
@@ -72,7 +72,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#74b700"
   },
   {
     "ticker": "RTX",
@@ -82,7 +82,7 @@
     "conditions": [],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#ce1126"
   },
   {
     "ticker": "PFE",
@@ -94,7 +94,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#0202c3"
   },
   {
     "ticker": "CRSP",
@@ -131,7 +131,7 @@
     ],
     "conviction": "draft",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#e41937"
   },
   {
     "ticker": "1211.HK",
@@ -143,7 +143,7 @@
     ],
     "conviction": "medium",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#e90115"
   },
   {
     "ticker": "FLNC",
@@ -155,7 +155,7 @@
     ],
     "conviction": "high",
     "status": "watching",
-    "brandColor": null
+    "brandColor": "#0050b5"
   },
   {
     "ticker": "LHX",

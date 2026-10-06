@@ -61,5 +61,23 @@ describe("SSRF guards", () => {
 
     lookup.mockResolvedValueOnce([{ address: "10.0.0.1", family: 4 }]);
     await expect(isSafePublicUrl("https://public-name.example")).resolves.toBe(false);
+
+    // Fallback to DoH when dns.lookup throws (e.g. Cloudflare Workers Edge runtime)
+    lookup.mockRejectedValueOnce(new Error("dns.lookup is not implemented"));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("cloudflare-dns.com")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ Answer: [{ type: 1, data: "93.184.216.34" }] })
+        });
+      }
+      return originalFetch(url);
+    });
+    try {
+      await expect(isSafePublicUrl("https://edge-resolved.example/path")).resolves.toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

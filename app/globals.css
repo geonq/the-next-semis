@@ -168,6 +168,7 @@ html[data-theme="light"] .shader-background {
 .app-header {
   position: relative;
   z-index: 10;
+  background: var(--color-bg);
   border-bottom: 1px solid var(--color-grid);
   height: 49px;
 }

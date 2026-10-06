@@ -52,8 +52,8 @@ export function PriceChart({
   company: string;
   brandColor?: string | null;
 }) {
-  const fetchedBrandColor = useBrandColor(ticker, company, storedBrandColor === undefined);
-  const brandColor = storedBrandColor === undefined ? fetchedBrandColor : storedBrandColor;
+  const fetchedBrandColor = useBrandColor(ticker, company, !storedBrandColor);
+  const brandColor = storedBrandColor || fetchedBrandColor;
   const seriesColor = brandColor ?? "var(--color-accent)";
 
   const areaData = history.map((c) => ({ date: new Date(c.time * 1000), value: c.close }));

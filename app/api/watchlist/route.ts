@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { resolveAndCacheBrandColor } from "@/lib/brand-color-resolver";
 import { fetchBrandfetchColor } from "@/lib/brandfetch";
 import { capitalizeFirst } from "@/lib/format";
 import { getWatchlist, setWatchlist } from "@/lib/kv";
@@ -62,6 +63,9 @@ const refreshColorsSchema = z.object({
 async function resolveStoredBrandColor(request: Request, ticker: string, company: string): Promise<string | null> {
   const direct = await fetchBrandfetchColor({ ticker });
   if (direct) return direct;
+
+  const resolved = await resolveAndCacheBrandColor(company, ticker);
+  if (resolved) return resolved;
 
   try {
     const url = new URL("/api/brand-color", request.url);

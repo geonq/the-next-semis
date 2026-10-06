@@ -16,8 +16,8 @@ export function BrandTicker({
   className?: string;
   children?: ReactNode;
 }) {
-  const fetchedColor = useBrandColor(ticker, company, brandColor === undefined);
-  const color = brandColor === undefined ? fetchedColor : brandColor;
+  const fetchedColor = useBrandColor(ticker, company, !brandColor);
+  const color = brandColor || fetchedColor;
   const style = color ? ({ "--brand-color": color } as CSSProperties) : undefined;
 
   return (
