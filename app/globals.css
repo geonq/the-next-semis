@@ -12,7 +12,7 @@
   --color-900: #011e47;
   --color-950: #000b19;
 
-  --color-bg: #00060a;
+  --color-bg: #000000;
   --color-fg: #f0f6ff;
   --color-muted: #647b9e;
   --color-neutral: #647b9e;
@@ -150,8 +150,8 @@ ol {
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  opacity: 1;
-  transition: opacity 300ms ease;
+  background: #000000;
+  transition: background-color 300ms ease;
 }
 
 .shader-background canvas {
@@ -162,8 +162,7 @@ ol {
 }
 
 html[data-theme="light"] .shader-background {
-  opacity: 0;
-  pointer-events: none;
+  background: #f0f6ff;
 }
 
 .app-header {

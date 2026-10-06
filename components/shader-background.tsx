@@ -16,6 +16,7 @@ precision highp float;
 uniform vec2 uResolution;
 uniform float uTime;
 uniform float uReveal;
+uniform float uTheme; // 1.0 = dark, 0.0 = light
 varying vec2 vUv;
 
 float hash(vec2 p) {
@@ -64,15 +65,33 @@ void main() {
   float cloud = smoothstep(0.43, 0.82, broad);
   float pulse = 0.58 + 0.42 * sin(t * 1.25 + detail * 5.0);
   float falloff = 0.72 + 0.28 * smoothstep(0.0, 0.75, 1.0 - length(p));
-  float intensity = uReveal * falloff * (0.105 * cloud + 0.14 * ribbon * pulse);
 
-  // Exact base tone matching --color-bg: #00060a (RGB: 0, 6, 10)
-  vec3 color = vec3(0.0, 0.0235, 0.0392);
-  color += vec3(0.0, 0.095, 0.27) * intensity;
-  color += vec3(0.0, 0.018, 0.055) * uReveal * pow(max(detail - 0.42, 0.0), 1.65);
-  color += vec3(0.0, 0.0025, 0.008) * noise(vUv * uResolution * 0.24 + uTime * 0.018);
+  // --- Dark Mode ---
+  // Blank canvas is strictly #000000 (RGB: 0, 0, 0)
+  vec3 darkBase = vec3(0.0, 0.0, 0.0);
+  vec3 darkNavy = vec3(0.027, 0.094, 0.169);  // #07182b (ShaderGradient deep navy)
+  vec3 darkOcean = vec3(0.118, 0.435, 0.663); // #1e6fa9 (ShaderGradient vibrant ocean)
+  vec3 darkBrand = vec3(0.015, 0.35, 0.82);   // #0253c4 (The Next Semis brand accent)
 
-  gl_FragColor = vec4(color, 1.0);
+  float darkIntensity = uReveal * falloff * (0.35 * cloud + 0.60 * ribbon * pulse);
+  vec3 darkWave = mix(darkNavy * 2.0, mix(darkOcean, darkBrand, sweep), clamp(ribbon * 1.5, 0.0, 1.0));
+  vec3 darkColor = darkBase + darkWave * darkIntensity;
+  darkColor += vec3(0.03, 0.12, 0.28) * (uReveal * pow(max(detail - 0.38, 0.0), 1.6));
+  darkColor += vec3(0.003, 0.006, 0.012) * noise(vUv * uResolution * 0.24 + uTime * 0.018);
+
+  // --- Light Mode ---
+  // Blank canvas is #f0f6ff
+  vec3 lightBase = vec3(0.941, 0.965, 1.0);
+  vec3 lightAzure = vec3(0.855, 0.914, 0.988);   // #dbebfc (soft azure wave)
+  vec3 lightCerulean = vec3(0.722, 0.831, 0.969);// #b8d4f7 (cerulean ribbon stream)
+
+  float lightIntensity = uReveal * falloff * (0.45 * cloud + 0.55 * ribbon * pulse);
+  vec3 lightWave = mix(lightAzure, lightCerulean, sweep);
+  vec3 lightColor = mix(lightBase, lightWave, clamp(lightIntensity * 0.75, 0.0, 1.0));
+  lightColor -= vec3(0.012, 0.016, 0.024) * (uReveal * pow(max(detail - 0.40, 0.0), 1.6));
+
+  vec3 finalColor = mix(lightColor, darkColor, uTheme);
+  gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
 
@@ -135,9 +154,10 @@ export function ShaderBackground() {
       (canvas.getContext("experimental-webgl") as WebGLRenderingContext | null);
 
     const applyFallback = () => {
-      canvas.style.background =
-        "radial-gradient(ellipse at 68% 30%, rgba(5, 62, 112, 0.16), transparent 44%), " +
-        "radial-gradient(ellipse at 22% 76%, rgba(0, 33, 72, 0.12), transparent 48%), #00060a";
+      const isLight = document.documentElement.dataset.theme === "light";
+      canvas.style.background = isLight
+        ? "radial-gradient(ellipse at 68% 30%, rgba(184, 212, 247, 0.45), transparent 48%), #f0f6ff"
+        : "radial-gradient(ellipse at 68% 30%, rgba(2, 83, 196, 0.25), transparent 48%), radial-gradient(ellipse at 22% 76%, rgba(7, 24, 43, 0.4), transparent 52%), #000000";
     };
 
     if (!gl) {
@@ -163,6 +183,7 @@ export function ShaderBackground() {
     const resolutionLoc = gl.getUniformLocation(program, "uResolution");
     const timeLoc = gl.getUniformLocation(program, "uTime");
     const revealLoc = gl.getUniformLocation(program, "uReveal");
+    const themeLoc = gl.getUniformLocation(program, "uTheme");
 
     let animationFrameId = 0;
     let isDisposed = false;
@@ -170,6 +191,9 @@ export function ShaderBackground() {
 
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let prefersReducedMotion = motionQuery.matches;
+
+    let targetTheme = document.documentElement.dataset.theme === "light" ? 0.0 : 1.0;
+    let currentTheme = targetTheme;
 
     function resize() {
       if (!canvas || !gl) return;
@@ -195,8 +219,15 @@ export function ShaderBackground() {
         revealAmount = 1.0;
       } else {
         elapsed = Math.max(0, (now - startedAt) / 1000);
-        revealAmount = Math.max(0, Math.min(1, elapsed / 1.5));
+        revealAmount = Math.max(0, Math.min(1, elapsed / 1.2));
         revealAmount = revealAmount * revealAmount * (3.0 - 2.0 * revealAmount);
+      }
+
+      const themeDiff = targetTheme - currentTheme;
+      if (Math.abs(themeDiff) > 0.001) {
+        currentTheme += themeDiff * 0.08;
+      } else {
+        currentTheme = targetTheme;
       }
 
       gl.useProgram(program);
@@ -207,13 +238,31 @@ export function ShaderBackground() {
       gl.uniform2f(resolutionLoc, canvas.width, canvas.height);
       gl.uniform1f(timeLoc, elapsed);
       gl.uniform1f(revealLoc, revealAmount);
+      gl.uniform1f(themeLoc, currentTheme);
 
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-      if (!prefersReducedMotion && !document.hidden) {
+      const isThemeTransitioning = Math.abs(targetTheme - currentTheme) > 0.001;
+
+      if ((!prefersReducedMotion || isThemeTransitioning) && !document.hidden) {
         animationFrameId = requestAnimationFrame(render);
       }
     }
+
+    const themeObserver = new MutationObserver(() => {
+      const isLight = document.documentElement.dataset.theme === "light";
+      targetTheme = isLight ? 0.0 : 1.0;
+      if (prefersReducedMotion) {
+        currentTheme = targetTheme;
+      }
+      if (!animationFrameId) {
+        animationFrameId = requestAnimationFrame(render);
+      }
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"]
+    });
 
     function onVisibilityChange() {
       if (document.hidden) {
@@ -260,6 +309,7 @@ export function ShaderBackground() {
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
+      themeObserver.disconnect();
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       motionQuery.removeEventListener("change", onMotionChange);
