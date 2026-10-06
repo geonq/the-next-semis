@@ -6,7 +6,6 @@ An Edge-native portfolio and research dashboard deployed on Cloudflare Workers, 
 
 **Live Production URLs:**
 - Primary: [https://thenextsemis.geonq.de](https://thenextsemis.geonq.de)
-- Alias: [https://semis.geonq.de](https://semis.geonq.de)
 - Worker Direct: [https://the-next-semis.domkegeorg2017.workers.dev](https://the-next-semis.domkegeorg2017.workers.dev)
 
 **Status: Shipped & Live on Cloudflare Edge (100% Free Forever Tier).**

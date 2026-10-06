@@ -48,47 +48,46 @@ float fbm(vec2 p) {
 void main() {
   float aspect = uResolution.x / max(uResolution.y, 1.0);
   vec2 p = (vUv - 0.5) * vec2(aspect, 1.0);
-  float t = uTime * 0.06;
+  float t = uTime * 0.20;
 
   vec2 warped = p;
-  warped += 0.11 * vec2(
-    sin(p.y * 3.4 + t * 1.3),
-    cos(p.x * 2.8 - t * 0.9)
+  warped += 0.20 * vec2(
+    sin(p.y * 3.2 + t * 1.5),
+    cos(p.x * 2.6 - t * 1.2)
   );
 
-  float broad = fbm(warped * 2.3 + vec2(t * 0.72, -t * 0.34));
-  float detail = fbm(warped * 4.6 + vec2(-t * 0.42, t * 0.24));
+  float broad = fbm(warped * 2.2 + vec2(t * 0.40, -t * 0.22));
+  float detail = fbm(warped * 4.4 + vec2(-t * 0.30, t * 0.26));
   float sweep = 0.5 + 0.5 * sin(
-    p.x * 2.25 - p.y * 3.6 + broad * 2.4 + t * 1.8
+    p.x * 2.2 - p.y * 3.2 + broad * 2.8 + t * 1.6
   );
-  float ribbon = smoothstep(0.62, 0.9, sweep) * smoothstep(0.26, 0.9, detail);
-  float cloud = smoothstep(0.43, 0.82, broad);
-  float pulse = 0.58 + 0.42 * sin(t * 1.25 + detail * 5.0);
-  float falloff = 0.72 + 0.28 * smoothstep(0.0, 0.75, 1.0 - length(p));
 
-  // --- Dark Mode ---
-  // Blank canvas is strictly #000000 (RGB: 0, 0, 0)
+  // Wispy organic wave filaments emerging out of the black void
+  float cloud = pow(smoothstep(0.58, 0.88, broad), 2.4);
+  float ribbon = pow(smoothstep(0.70, 0.95, sweep) * smoothstep(0.36, 0.85, detail), 2.0);
+  float pulse = 0.65 + 0.35 * sin(t * 1.8 + detail * 4.0);
+  float falloff = 0.70 + 0.30 * smoothstep(0.0, 0.80, 1.0 - length(p));
+
+  // Wave mask: 0 over ~80% of canvas, leaving vast majority strictly black
+  float waveMask = clamp(0.28 * cloud + 0.72 * ribbon * pulse, 0.0, 1.0) * falloff * uReveal;
+
+  // --- Dark Mode: Far more black, subtle blues emerging ---
   vec3 darkBase = vec3(0.0, 0.0, 0.0);
-  vec3 darkNavy = vec3(0.027, 0.094, 0.169);  // #07182b (ShaderGradient deep navy)
-  vec3 darkOcean = vec3(0.118, 0.435, 0.663); // #1e6fa9 (ShaderGradient vibrant ocean)
-  vec3 darkBrand = vec3(0.015, 0.35, 0.82);   // #0253c4 (The Next Semis brand accent)
+  vec3 subtleNavy = vec3(0.012, 0.045, 0.11);
+  vec3 subtleOcean = vec3(0.035, 0.14, 0.29);
+  vec3 subtleCrest = vec3(0.065, 0.24, 0.48);
 
-  float darkIntensity = uReveal * falloff * (0.35 * cloud + 0.60 * ribbon * pulse);
-  vec3 darkWave = mix(darkNavy * 2.0, mix(darkOcean, darkBrand, sweep), clamp(ribbon * 1.5, 0.0, 1.0));
-  vec3 darkColor = darkBase + darkWave * darkIntensity;
-  darkColor += vec3(0.03, 0.12, 0.28) * (uReveal * pow(max(detail - 0.38, 0.0), 1.6));
-  darkColor += vec3(0.003, 0.006, 0.012) * noise(vUv * uResolution * 0.24 + uTime * 0.018);
+  vec3 darkWave = mix(subtleNavy, mix(subtleOcean, subtleCrest, sweep), ribbon);
+  vec3 darkColor = darkBase + darkWave * waveMask;
+  darkColor += vec3(0.015, 0.05, 0.10) * (waveMask * pow(max(detail - 0.42, 0.0), 2.0));
 
-  // --- Light Mode ---
-  // Blank canvas is #f0f6ff
+  // --- Light Mode: Clean ice-white with subtle azure wisps ---
   vec3 lightBase = vec3(0.941, 0.965, 1.0);
-  vec3 lightAzure = vec3(0.855, 0.914, 0.988);   // #dbebfc (soft azure wave)
-  vec3 lightCerulean = vec3(0.722, 0.831, 0.969);// #b8d4f7 (cerulean ribbon stream)
+  vec3 lightWisp = vec3(0.88, 0.93, 0.99);
+  vec3 lightCrest = vec3(0.78, 0.88, 0.98);
 
-  float lightIntensity = uReveal * falloff * (0.45 * cloud + 0.55 * ribbon * pulse);
-  vec3 lightWave = mix(lightAzure, lightCerulean, sweep);
-  vec3 lightColor = mix(lightBase, lightWave, clamp(lightIntensity * 0.75, 0.0, 1.0));
-  lightColor -= vec3(0.012, 0.016, 0.024) * (uReveal * pow(max(detail - 0.40, 0.0), 1.6));
+  vec3 lightWave = mix(lightWisp, lightCrest, sweep);
+  vec3 lightColor = mix(lightBase, lightWave, clamp(waveMask * 0.9, 0.0, 1.0));
 
   vec3 finalColor = mix(lightColor, darkColor, uTheme);
   gl_FragColor = vec4(finalColor, 1.0);

@@ -31,7 +31,6 @@
 		"JWT_SECRET": "c62fb3be1e224e77bba60d13b432e652a9757659c2b3aa93bf777e38a2e05aa3"
 	},
 	"routes": [
-		{ "pattern": "thenextsemis.geonq.de", "custom_domain": true },
-		{ "pattern": "semis.geonq.de", "custom_domain": true }
+		{ "pattern": "thenextsemis.geonq.de", "custom_domain": true }
 	]
 }
