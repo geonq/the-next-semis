@@ -172,18 +172,31 @@ export function realizedPnlSummary(entries: EnrichedRealizedPnlEntry[]): Realize
   };
 }
 
+export function isPromotionalRewardEntry(entry: Pick<RealizedPnlEntry, "entry_price" | "note">): boolean {
+  if (entry.entry_price === 0) return true;
+  if (!entry.note) return false;
+  const lower = entry.note.toLowerCase();
+  return (
+    lower.includes("crypto reward") ||
+    lower.includes("staking earnings") ||
+    lower.includes("bonus/earn")
+  );
+}
+
 export function realizedPnlLeaders(
   entries: EnrichedRealizedPnlEntry[],
   direction: "winners" | "losers",
   limit = 5
 ): EnrichedRealizedPnlEntry[] {
   return entries
+    .filter((entry) => !isPromotionalRewardEntry(entry))
     .filter((entry) => (direction === "winners" ? entry.realized_pnl > 0 : entry.realized_pnl < 0))
     .sort((a, b) =>
       direction === "winners" ? b.realized_pnl - a.realized_pnl : a.realized_pnl - b.realized_pnl
     )
     .slice(0, limit);
 }
+
 
 export const portfolioChartRanges = ["1d", "1w", "1month", "ytd", "all"] as const;
 

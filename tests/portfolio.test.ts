@@ -241,6 +241,29 @@ describe("portfolio calculations", () => {
     expect(realizedPnlLeaders(enriched, "losers").map((entry) => entry.id)).toEqual(["loss-1"]);
   });
 
+  it("excludes promotional reward and bonus entries from realized PnL leaders", () => {
+    const promoEntries: RealizedPnlEntry[] = [
+      ...realizedPnl,
+      {
+        id: "paxg-reward",
+        ticker: "PAXG",
+        company: "PAX Gold",
+        assetClass: "crypto",
+        side: "long",
+        quantity: 0.002,
+        entry_price: 0,
+        exit_price: 3600,
+        currency: "EUR",
+        closed_at: "2026-06-12",
+        note: "Robinhood Crypto Sale; from Crypto Reward (bonus/earn, €0 cost basis)"
+      }
+    ];
+    const enriched = enrichRealizedPnl(promoEntries);
+    const winners = realizedPnlLeaders(enriched, "winners");
+    expect(winners.some((entry) => entry.ticker === "PAXG")).toBe(false);
+  });
+
+
   it("summarizes account value from cash flows plus active and realized PnL", () => {
     const enriched = enrichPositions(positions, quotes);
     const realized = enrichRealizedPnl(realizedPnl);
