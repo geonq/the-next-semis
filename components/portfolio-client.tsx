@@ -544,6 +544,8 @@ function RealizedPnlSection({
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const visibleEntries = expanded ? entries : entries.slice(0, 5);
   const hasPerpRows = entries.some((e) => e.assetClass === "perp" && e.bitstamp_market);
 
   return (
@@ -555,18 +557,28 @@ function RealizedPnlSection({
             <span className={`rpnl-total tabular ${signClass(summary.total_realized_pnl)}`}>
               {fmtSignedUsd(summary.total_realized_pnl)}
             </span>
-            <span className="muted tabular">{fmtSignedPct(summary.win_rate)} win rate</span>
-            <span className="muted tabular">{summary.winners}W / {summary.losers}L</span>
+            <span className={`tabular ${summary.win_rate >= 50 ? "gain" : summary.win_rate > 0 ? "loss" : "muted"}`}>
+              {summary.win_rate.toFixed(1)}% win rate
+            </span>
+            <span className="tabular">
+              <span className="gain">{summary.winners}W</span>
+              <span className="muted"> / </span>
+              <span className="loss">{summary.losers}L</span>
+            </span>
           </div>
         </div>
         <div className="rpnl-averages">
-          <span className="tabular gain">Avg win {fmtSignedUsd(summary.average_winner)}</span>
-          <span className="tabular loss">Avg loss {fmtSignedUsd(summary.average_loser)}</span>
+          <span className={`tabular ${summary.average_winner > 0 ? "gain" : "muted"}`}>
+            Avg win {fmtSignedUsd(summary.average_winner)}
+          </span>
+          <span className={`tabular ${summary.average_loser < 0 ? "loss" : "muted"}`}>
+            Avg loss {fmtSignedUsd(summary.average_loser)}
+          </span>
         </div>
       </div>
 
       <div className="m-pos-list rpnl-mobile-list">
-        {entries.map((entry) => (
+        {visibleEntries.map((entry) => (
           <MobileRealizedPnlRow
             key={entry.id}
             entry={entry}
@@ -597,7 +609,7 @@ function RealizedPnlSection({
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry) => {
+            {visibleEntries.map((entry) => {
               const perpQuote = entry.bitstamp_market ? perpQuotes[entry.bitstamp_market] : undefined;
               return (
                 <tr key={entry.id}>
@@ -607,7 +619,11 @@ function RealizedPnlSection({
                       <span className="subtle">{entry.company}</span>
                     </span>
                   </td>
-                  <td>{entry.side}</td>
+                  <td>
+                    <span className={`perp-side-badge ${entry.side}`}>
+                      {entry.side ? entry.side.toUpperCase() : "—"}
+                    </span>
+                  </td>
                   <td className="tabular">{fmtQuantity(entry.quantity)}</td>
                   <td className="tabular">{fmtUsd(entry.entry_price)}</td>
                   <td className="tabular">{fmtUsd(entry.exit_price)}</td>
@@ -656,6 +672,21 @@ function RealizedPnlSection({
         </table>
         {entries.length === 0 ? <p className="muted rpnl-empty">No realized PnL entries yet.</p> : null}
       </div>
+
+      {entries.length > 5 ? (
+        <div className="rpnl-expand-wrap">
+          <button
+            type="button"
+            className="rpnl-expand-btn"
+            onClick={() => setExpanded((prev) => !prev)}
+            aria-expanded={expanded}
+          >
+            {expanded
+              ? "Show 5 recent trades ↑"
+              : `Show all ${entries.length} closed trades (${entries.length - 5} more) ↓`}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -688,7 +719,11 @@ function MobileRealizedPnlRow({
           <div className="m-pos-stats">
             <div className="m-pos-stat">
               <span className="m-pos-stat-label">Side</span>
-              <span className="m-pos-stat-value">{entry.side}</span>
+              <span className="m-pos-stat-value">
+                <span className={`perp-side-badge ${entry.side}`}>
+                  {entry.side ? entry.side.toUpperCase() : "—"}
+                </span>
+              </span>
             </div>
             <div className="m-pos-stat">
               <span className="m-pos-stat-label">Qty</span>

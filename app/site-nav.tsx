@@ -47,7 +47,7 @@ export function SiteNav() {
           {navItems.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
-              <Link className={active ? "active" : ""} href={item.href} key={item.href}>
+              <Link className={`nav-link${active ? " active" : ""}`} href={item.href} key={item.href}>
                 {item.label}
                 {active ? (
                   <motion.span
@@ -60,16 +60,16 @@ export function SiteNav() {
             );
           })}
           {isAdmin ? (
-            <button className="theme-toggle" onClick={handleLogout} type="button" aria-label="Logout">
+            <button className="nav-icon-link theme-toggle" onClick={handleLogout} type="button" aria-label="Logout">
               <UserXmark width={16} height={16} />
             </button>
           ) : (
-            <Link className={pathname === "/login" ? "active" : ""} href="/login" aria-label="Login">
+            <Link className={`nav-icon-link${pathname === "/login" ? " active" : ""}`} href="/login" aria-label="Login">
               <UserCircle width={16} height={16} />
             </Link>
           )}
           <button
-            className="theme-toggle"
+            className="nav-icon-link theme-toggle"
             aria-label="Toggle theme"
             onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
             type="button"

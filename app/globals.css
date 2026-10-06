@@ -198,42 +198,51 @@ html[data-theme="light"] .shader-background {
   align-items: center;
   display: flex;
   gap: 26px;
+  height: 100%;
 }
 
 .nav a,
-.theme-toggle {
+.nav-link {
+  align-items: center;
   color: var(--color-neutral);
+  display: inline-flex;
   font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  position: relative;
   transition: color 150ms ease;
 }
 
 .nav a:hover,
 .nav a.active,
+.nav-link:hover,
+.nav-link.active,
+.nav-icon-link:hover,
+.nav-icon-link.active,
 .theme-toggle:hover {
   color: var(--color-fg);
 }
 
+.nav-icon-link,
 .theme-toggle {
+  align-items: center;
   background: transparent;
   border: 0;
+  color: var(--color-neutral);
   cursor: pointer;
+  display: inline-flex;
+  height: 24px;
+  justify-content: center;
   line-height: 1;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
-}
-
-.nav a {
-  display: inline-flex;
-  align-items: center;
-  position: relative;
-  padding-bottom: 4px;
+  transition: color 150ms ease;
+  width: 24px;
 }
 
 .nav-active-indicator {
   background: var(--color-accent);
   border-radius: 999px;
-  bottom: 0;
+  bottom: -6px;
   height: 2px;
   left: 0;
   position: absolute;
@@ -518,6 +527,34 @@ html[data-theme="light"] .shader-background {
 .rpnl-empty {
   font-size: 13px;
   margin-top: 16px;
+}
+
+.rpnl-expand-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.rpnl-expand-btn {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--color-grid);
+  border-radius: 6px;
+  color: var(--color-neutral);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 6px;
+  padding: 7px 16px;
+  transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+.rpnl-expand-btn:hover {
+  background: color-mix(in srgb, var(--color-fg) 4%, transparent);
+  border-color: var(--color-neutral);
+  color: var(--color-fg);
 }
 
 .perp-market-cell {
