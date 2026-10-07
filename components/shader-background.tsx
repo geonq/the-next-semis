@@ -19,139 +19,76 @@ uniform float uReveal;
 uniform float uTheme; // 1.0 = dark, 0.0 = light
 varying vec2 vUv;
 
-// Quintic-interpolated smooth 3D noise (zero facet artifacts)
-float hash3(vec3 p) {
-  p = fract(p * 0.3183099 + 0.1);
-  p *= 17.0;
-  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
 
-float noise3(vec3 p) {
-  vec3 i = floor(p);
-  vec3 f = fract(p);
-  // Quintic Hermite interpolant for C2 continuity
-  vec3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
-
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
   return mix(
-    mix(
-      mix(hash3(i + vec3(0.0, 0.0, 0.0)), hash3(i + vec3(1.0, 0.0, 0.0)), u.x),
-      mix(hash3(i + vec3(0.0, 1.0, 0.0)), hash3(i + vec3(1.0, 1.0, 0.0)), u.x),
-      u.y
-    ),
-    mix(
-      mix(hash3(i + vec3(0.0, 0.0, 1.0)), hash3(i + vec3(1.0, 0.0, 1.0)), u.x),
-      mix(hash3(i + vec3(0.0, 1.0, 1.0)), hash3(i + vec3(1.0, 1.0, 1.0)), u.x),
-      u.y
-    ),
-    u.z
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
+    f.y
   );
 }
 
-float fbm3(vec3 p) {
-  float v = 0.0;
-  float a = 0.5;
+float fbm(vec2 p) {
+  float value = 0.0;
+  float amplitude = 0.5;
   for (int i = 0; i < 4; i++) {
-    v += a * noise3(p);
-    p = p * 2.04 + vec3(1.3, 2.7, 4.1);
-    a *= 0.5;
+    value += amplitude * noise(p);
+    p = p * 2.02 + vec2(17.1, 9.2);
+    amplitude *= 0.5;
   }
-  return v;
+  return value;
 }
 
 void main() {
   float aspect = uResolution.x / max(uResolution.y, 1.0);
   vec2 p = (vUv - 0.5) * vec2(aspect, 1.0);
-  float t = uTime * 0.15;
+  float t = uTime * 0.16;
 
-  // Sphere center: gently offset on desktop to frame the hero layout, centered on mobile
-  vec2 center = vec2(aspect > 1.2 ? 0.08 * aspect : 0.0, 0.0);
-  vec2 sp = p - center;
-  float dist = length(sp);
-
-  // Large, unmistakable 3D sphere: radius 0.38 (76% of viewport height)
-  float baseRadius = 0.38;
-
-  // Gentle organic boundary breathing
-  float angle = atan(sp.y, sp.x);
-  float boundaryWobble = 0.010 * sin(angle * 3.0 + t * 0.8)
-                       + 0.006 * cos(angle * 5.0 - t * 0.6);
-  float effectiveRadius = baseRadius + boundaryWobble;
-
-  // Soft anti-aliased edge mask: outside the sphere silhouette is strictly 0.0
-  float sphereMask = smoothstep(effectiveRadius + 0.015, effectiveRadius - 0.015, dist);
-
-  // --- 3D Spherical Geometry ---
-  float normDist = clamp(dist / effectiveRadius, 0.0, 1.0);
-  float z = sqrt(max(1.0 - normDist * normDist, 0.0));
-  vec2 dir = dist > 0.0001 ? (sp / dist) : vec2(0.0);
-  vec3 normal = normalize(vec3(dir * normDist, z));
-
-  // Rotate surface coordinates in 3D around Y and tilted X axis
-  float rotY = t * 0.26;
-  vec3 rotN;
-  rotN.x = normal.x * cos(rotY) - normal.z * sin(rotY);
-  rotN.y = normal.y;
-  rotN.z = normal.x * sin(rotY) + normal.z * cos(rotY);
-
-  float tiltX = 0.36;
-  vec3 tiltedN;
-  tiltedN.x = rotN.x;
-  tiltedN.y = rotN.y * cos(tiltX) - rotN.z * sin(tiltX);
-  tiltedN.z = rotN.y * sin(tiltX) + rotN.z * cos(tiltX);
-
-  // Domain-warped 3D flow across the curved sphere surface (butter-smooth)
-  vec3 sphereCoord = tiltedN * 1.5;
-  vec3 warp = vec3(
-    fbm3(sphereCoord + vec3(t * 0.10, 0.0, 0.0)),
-    fbm3(sphereCoord + vec3(0.0, t * 0.12, 1.4)),
-    fbm3(sphereCoord + vec3(1.2, 0.0, -t * 0.08))
+  vec2 warped = p;
+  warped += 0.20 * vec2(
+    sin(p.y * 3.2 + t * 1.5),
+    cos(p.x * 2.6 - t * 1.2)
   );
-  float fluid = fbm3(sphereCoord + warp * 0.45 + vec3(0.0, -t * 0.16, t * 0.12));
 
-  // --- 3D Physical Lighting ---
-  vec3 lightDir = normalize(vec3(0.55, 0.65, 0.80));
-  vec3 viewDir = vec3(0.0, 0.0, 1.0);
-  vec3 halfDir = normalize(lightDir + viewDir);
+  float broad = fbm(warped * 2.2 + vec2(t * 0.40, -t * 0.22));
+  float detail = fbm(warped * 4.4 + vec2(-t * 0.30, t * 0.26));
+  float sweep = 0.5 + 0.5 * sin(
+    p.x * 2.2 - p.y * 3.2 + broad * 2.8 + t * 1.6
+  );
 
-  float diff = max(dot(normal, lightDir), 0.0);
-  float ambient = 0.36;
-  float lighting = ambient + (1.0 - ambient) * diff;
+  // Wispy organic wave filaments emerging out of the void
+  float cloud = pow(smoothstep(0.58, 0.88, broad), 2.4);
+  float ribbon = pow(smoothstep(0.70, 0.95, sweep) * smoothstep(0.36, 0.85, detail), 2.0);
+  float pulse = 0.65 + 0.35 * sin(t * 1.8 + detail * 4.0);
+  float falloff = 0.70 + 0.30 * smoothstep(0.0, 0.80, 1.0 - length(p));
 
-  float spec = pow(max(dot(normal, halfDir), 0.0), 28.0);
-  float fresnel = pow(1.0 - max(normal.z, 0.0), 2.5);
+  // Wave mask: 0 over ~80% of canvas, leaving vast majority strictly black / white
+  float waveMask = clamp(0.28 * cloud + 0.72 * ribbon * pulse, 0.0, 1.0) * falloff * uReveal;
 
-  // --- Palette: Authentic ShaderGradient Blues ---
-  vec3 deepNavy = vec3(0.027, 0.094, 0.169);  // #07182b
-  vec3 oceanBlue = vec3(0.118, 0.435, 0.663); // #1e6fa9
-  vec3 brandBlue = vec3(0.008, 0.325, 0.769); // #0253c4
-  vec3 crestAzure = vec3(0.26, 0.62, 0.98);   // #429efa
+  // Shared signature blue waves (from geonq personal site & brand palette)
+  vec3 subtleNavy = vec3(0.012, 0.045, 0.11);
+  vec3 subtleOcean = vec3(0.035, 0.14, 0.29);
+  vec3 subtleCrest = vec3(0.065, 0.24, 0.48);
 
-  // Gradient surface mix
-  vec3 surfaceColor = mix(deepNavy, oceanBlue, smoothstep(0.20, 0.58, fluid));
-  surfaceColor = mix(surfaceColor, brandBlue, smoothstep(0.46, 0.84, fluid));
-  surfaceColor = mix(surfaceColor, crestAzure, smoothstep(0.74, 1.0, fluid) * 0.45);
-
-  // --- Dark Mode: Pure pitch-black canvas (#000000) + glowing 3D sphere ---
-  vec3 litSphereDark = surfaceColor * lighting;
-  litSphereDark += crestAzure * (spec * 0.40);
-  litSphereDark += oceanBlue * (fresnel * 0.48);
-
+  // --- Dark Mode: Pure pitch-black void (#000000) with subtle blue wave filaments ---
+  vec3 darkWave = mix(subtleNavy, mix(subtleOcean, subtleCrest, sweep), ribbon);
   vec3 darkBase = vec3(0.0, 0.0, 0.0);
-  vec3 darkColor = mix(darkBase, litSphereDark, sphereMask * uReveal);
+  vec3 darkColor = darkBase + darkWave * waveMask;
+  darkColor += vec3(0.015, 0.05, 0.10) * (waveMask * pow(max(detail - 0.42, 0.0), 2.0));
 
-  // --- Light Mode: Pure white canvas (#ffffff) + same signature blue 3D sphere ---
+  // --- Light Mode: Pure white base (#ffffff) with the same blue waves ---
   vec3 lightBase = vec3(1.0, 1.0, 1.0);
-  vec3 litSphereLight = mix(
-    vec3(0.90, 0.95, 1.0),
-    mix(oceanBlue, brandBlue, smoothstep(0.30, 0.75, fluid)),
-    smoothstep(0.12, 0.68, fluid)
-  );
-  litSphereLight = mix(litSphereLight, deepNavy, smoothstep(0.68, 0.95, fluid) * 0.45);
-  litSphereLight = litSphereLight * (0.62 + 0.38 * diff);
-  litSphereLight += vec3(0.40, 0.70, 1.0) * (spec * 0.35);
-  litSphereLight += oceanBlue * (fresnel * 0.35);
+  vec3 brandAccent = vec3(0.01, 0.30, 0.75);
+  vec3 lightWave = mix(darkWave * 2.2, brandAccent, sweep * 0.4);
 
-  vec3 lightColor = mix(lightBase, litSphereLight, sphereMask * uReveal);
+  vec3 lightColor = mix(lightBase, lightWave, clamp(waveMask * 0.75, 0.0, 1.0));
+  lightColor = mix(lightColor, brandAccent, clamp(waveMask * pow(max(detail - 0.42, 0.0), 2.0) * 0.5, 0.0, 1.0));
 
   vec3 finalColor = mix(lightColor, darkColor, uTheme);
   gl_FragColor = vec4(finalColor, 1.0);
