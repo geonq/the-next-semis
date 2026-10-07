@@ -65,10 +65,13 @@ export async function getRealizedPnl(): Promise<RealizedPnlEntry[]> {
   const redis = getRedis();
   if (redis) {
     const data = await redis.get("realized_pnl");
-    if (data) return parseRealizedPnl(data);
+    const parsed = data ? parseRealizedPnl(data) : [];
     const seed = await loadRealizedPnl();
-    await redis.set("realized_pnl", seed);
-    return seed;
+    if (parsed.length < seed.length) {
+      await redis.set("realized_pnl", seed);
+      return seed;
+    }
+    return parsed;
   }
   return loadRealizedPnl();
 }
