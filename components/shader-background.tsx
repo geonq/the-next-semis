@@ -48,46 +48,79 @@ float fbm(vec2 p) {
 void main() {
   float aspect = uResolution.x / max(uResolution.y, 1.0);
   vec2 p = (vUv - 0.5) * vec2(aspect, 1.0);
-  float t = uTime * 0.20;
+  float t = uTime * 0.16;
 
-  vec2 warped = p;
-  warped += 0.20 * vec2(
-    sin(p.y * 3.2 + t * 1.5),
-    cos(p.x * 2.6 - t * 1.2)
+  // Gentle center placement: slightly offset to give visual balance with the layout
+  vec2 center = vec2(0.06 * aspect, -0.02);
+  vec2 sp = p - center;
+  float dist = length(sp);
+
+  // Large base radius (~140% of viewport height) so it fills the screen with subtle presence
+  float baseRadius = 0.68;
+
+  // Subtle organic boundary deformation
+  float angle = atan(sp.y, sp.x);
+  float boundaryWobble = 0.035 * sin(angle * 3.0 + t * 1.1)
+                       + 0.020 * cos(angle * 5.0 - t * 0.8)
+                       + 0.015 * sin(angle * 7.0 + t * 1.4);
+  float effectiveRadius = baseRadius + boundaryWobble;
+
+  // 3D spherical normal
+  float z2 = max(effectiveRadius * effectiveRadius - dist * dist, 0.0);
+  float z = sqrt(z2);
+  vec3 normal = normalize(vec3(sp, z));
+
+  // Fresnel rim reflection around the spherical edge
+  float fresnel = pow(1.0 - max(normal.z, 0.0), 2.2);
+
+  // Surface texture / flow coordinates across the sphere
+  vec2 sphereUv = sp / effectiveRadius;
+  vec2 warpedUv = sphereUv + 0.16 * vec2(
+    sin(sphereUv.y * 3.4 + t * 1.2),
+    cos(sphereUv.x * 2.8 - t * 0.9)
   );
 
-  float broad = fbm(warped * 2.2 + vec2(t * 0.40, -t * 0.22));
-  float detail = fbm(warped * 4.4 + vec2(-t * 0.30, t * 0.26));
-  float sweep = 0.5 + 0.5 * sin(
-    p.x * 2.2 - p.y * 3.2 + broad * 2.8 + t * 1.6
+  float broad = fbm(warpedUv * 2.2 + vec2(t * 0.25, -t * 0.15));
+  float detail = fbm(warpedUv * 4.6 + vec2(-t * 0.18, t * 0.20));
+
+  // Slow harmonic wave bands sweeping across the sphere surface
+  float waveSweep = 0.5 + 0.5 * sin(
+    dot(sphereUv, vec2(1.8, -1.2)) * 2.8 + broad * 3.2 + t * 1.4
   );
 
-  // Wispy organic wave filaments emerging out of the black void
-  float cloud = pow(smoothstep(0.58, 0.88, broad), 2.4);
-  float ribbon = pow(smoothstep(0.70, 0.95, sweep) * smoothstep(0.36, 0.85, detail), 2.0);
-  float pulse = 0.65 + 0.35 * sin(t * 1.8 + detail * 4.0);
-  float falloff = 0.70 + 0.30 * smoothstep(0.0, 0.80, 1.0 - length(p));
+  // Interior mask and smooth outer atmospheric falloff
+  float sphereCore = smoothstep(effectiveRadius + 0.02, effectiveRadius - 0.12, dist);
+  float sphereAtmosphere = pow(smoothstep(effectiveRadius + 0.42, effectiveRadius - 0.08, dist), 2.0);
 
-  // Wave mask: 0 over ~80% of canvas, leaving vast majority strictly black
-  float waveMask = clamp(0.28 * cloud + 0.72 * ribbon * pulse, 0.0, 1.0) * falloff * uReveal;
+  // Combined mask with reveal transition
+  float sphereMask = clamp(sphereCore * 0.75 + sphereAtmosphere * 0.25, 0.0, 1.0) * uReveal;
 
-  // --- Dark Mode: Far more black, subtle blues emerging ---
+  // Shared signature blue palette:
+  vec3 deepNavy = vec3(0.012, 0.045, 0.12);
+  vec3 oceanBlue = vec3(0.035, 0.14, 0.32);
+  vec3 crestAzure = vec3(0.08, 0.30, 0.62);
+  vec3 rimGlow = vec3(0.12, 0.45, 0.88);
+
+  // --- Dark Mode: Pure pitch-black void + luminous blue sphere ---
   vec3 darkBase = vec3(0.0, 0.0, 0.0);
-  vec3 subtleNavy = vec3(0.012, 0.045, 0.11);
-  vec3 subtleOcean = vec3(0.035, 0.14, 0.29);
-  vec3 subtleCrest = vec3(0.065, 0.24, 0.48);
+  vec3 darkSphereSurface = mix(deepNavy, mix(oceanBlue, crestAzure, waveSweep), smoothstep(0.35, 0.80, detail));
+  darkSphereSurface += rimGlow * (fresnel * 0.85);
+  darkSphereSurface += vec3(0.04, 0.18, 0.40) * (broad * 0.5);
 
-  vec3 darkWave = mix(subtleNavy, mix(subtleOcean, subtleCrest, sweep), ribbon);
-  vec3 darkColor = darkBase + darkWave * waveMask;
-  darkColor += vec3(0.015, 0.05, 0.10) * (waveMask * pow(max(detail - 0.42, 0.0), 2.0));
+  vec3 darkColor = mix(darkBase, darkSphereSurface, sphereMask);
+  darkColor += oceanBlue * (sphereAtmosphere * (1.0 - sphereCore) * 0.45 * uReveal);
 
-  // --- Light Mode: Clean ice-white with subtle azure wisps ---
-  vec3 lightBase = vec3(0.941, 0.965, 1.0);
-  vec3 lightWisp = vec3(0.88, 0.93, 0.99);
-  vec3 lightCrest = vec3(0.78, 0.88, 0.98);
+  // --- Light Mode: Pure white background + same signature blue waves/sphere ---
+  vec3 lightBase = vec3(1.0, 1.0, 1.0);
+  vec3 lightSphereSurface = mix(
+    mix(vec3(0.92, 0.96, 1.0), vec3(0.70, 0.84, 0.98), waveSweep),
+    crestAzure,
+    smoothstep(0.40, 0.85, detail) * 0.45
+  );
+  lightSphereSurface = mix(lightSphereSurface, rimGlow, fresnel * 0.55);
 
-  vec3 lightWave = mix(lightWisp, lightCrest, sweep);
-  vec3 lightColor = mix(lightBase, lightWave, clamp(waveMask * 0.9, 0.0, 1.0));
+  vec3 lightColor = mix(lightBase, lightSphereSurface, clamp(sphereMask * 0.78, 0.0, 1.0));
+  lightColor = mix(lightColor, vec3(0.85, 0.92, 0.99), sphereAtmosphere * (1.0 - sphereCore) * 0.35 * uReveal);
 
   vec3 finalColor = mix(lightColor, darkColor, uTheme);
   gl_FragColor = vec4(finalColor, 1.0);
@@ -155,7 +188,7 @@ export function ShaderBackground() {
     const applyFallback = () => {
       const isLight = document.documentElement.dataset.theme === "light";
       canvas.style.background = isLight
-        ? "radial-gradient(ellipse at 68% 30%, rgba(184, 212, 247, 0.45), transparent 48%), #f0f6ff"
+        ? "radial-gradient(ellipse at 68% 30%, rgba(184, 212, 247, 0.45), transparent 48%), #ffffff"
         : "radial-gradient(ellipse at 68% 30%, rgba(2, 83, 196, 0.25), transparent 48%), radial-gradient(ellipse at 22% 76%, rgba(7, 24, 43, 0.4), transparent 52%), #000000";
     };
 

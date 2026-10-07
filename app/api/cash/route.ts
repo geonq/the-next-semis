@@ -30,6 +30,11 @@ async function amountUsd(entry: { amount: number; currency: string; date: string
   return rate == null ? null : entry.amount * rate;
 }
 
+export async function GET() {
+  const entries = await getCashEntries();
+  return NextResponse.json(entries);
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const parsed = addSchema.safeParse(body);

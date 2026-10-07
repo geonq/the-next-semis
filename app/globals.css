@@ -162,7 +162,7 @@ ol {
 }
 
 html[data-theme="light"] .shader-background {
-  background: #f0f6ff;
+  background: #ffffff;
 }
 
 .app-header {
@@ -177,7 +177,7 @@ html[data-theme="light"] .shader-background {
 }
 
 html[data-theme="light"] .app-header {
-  background-color: #f0f6ff;
+  background-color: #ffffff;
   background: var(--color-bg);
 }
 

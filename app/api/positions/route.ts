@@ -123,6 +123,11 @@ function stakingInputError(position: PositionInput, maxShares = position.shares)
   return null;
 }
 
+export async function GET() {
+  const positions = await getPositions();
+  return NextResponse.json(positions);
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const parsed = addSchema.safeParse(body);

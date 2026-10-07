@@ -21,10 +21,9 @@ export default async function PortfolioPage() {
   const tickers = trackedTickers(positions, watchlist);
   const cryptoIds = trackedCryptoIds(positions, watchlist);
   const coingeckoParam = formatCoingeckoParam(cryptoIds);
-  const perpMarkets = [...new Set([
-    ...positions.filter((p) => p.assetClass === "perp" && p.bitstamp_market).map((p) => p.bitstamp_market!),
-    ...realizedPnl.filter((e) => e.assetClass === "perp" && e.bitstamp_market).map((e) => e.bitstamp_market!)
-  ])];
+  const perpMarkets = [...new Set(
+    positions.filter((p) => p.assetClass === "perp" && p.bitstamp_market).map((p) => p.bitstamp_market!)
+  )];
   const [yahooQuotes, cgQuotes, initialPerpQuotes] = await Promise.all([
     fetchQuotes(tickers),
     fetchCoinGeckoQuotes(cryptoIds),
