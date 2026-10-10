@@ -47,33 +47,35 @@ export function ShaderBackground() {
         >
           <ShaderGradient
             control="props"
-            shader="defaults"
-            type="plane"
-            animate="on"
-            uSpeed={0.06}
-            uStrength={0.45}
-            uDensity={0.6}
-            uFrequency={3.5}
-            uAmplitude={0.18}
-            positionX={0}
-            positionY={0}
-            positionZ={0}
-            rotationX={0}
-            rotationY={0}
-            rotationZ={0}
-            cAzimuthAngle={180}
-            cPolarAngle={90}
-            cDistance={2.8}
-            cameraZoom={1}
-            color1={isLight ? "#ffffff" : "#000000"}
-            color2={isLight ? "#dbeaff" : "#3b82f6"}
-            color3={isLight ? "#ffffff" : "#000000"}
-            brightness={isLight ? 1.05 : 0.95}
-            grain="off"
-            lightType="3d"
-            envPreset="city"
-            reflection={0.1}
-            wireframe={false}
+            {...{
+              type: "waterPlane",
+              shader: "defaults",
+              animate: "on",
+              uSpeed: 0.05,
+              uStrength: 1.2,
+              uDensity: 1.2,
+              uFrequency: 0,
+              uAmplitude: 0,
+              positionX: 0,
+              positionY: 0,
+              positionZ: 0,
+              rotationX: 45,
+              rotationY: 0,
+              rotationZ: -45,
+              cAzimuthAngle: 180,
+              cPolarAngle: 80,
+              cDistance: 3.6,
+              cameraZoom: 1,
+              color1: isLight ? "#ffffff" : "#000000",
+              color2: isLight ? "#bfdbfe" : "#60a5fa",
+              color3: isLight ? "#ffffff" : "#000000",
+              brightness: isLight ? 1.05 : 0.8,
+              grain: "off",
+              lightType: "3d",
+              envPreset: "city",
+              reflection: 0.1,
+              wireframe: false,
+            }}
           />
         </ShaderGradientCanvas>
       ) : null}
