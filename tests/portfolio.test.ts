@@ -515,4 +515,45 @@ describe("portfolio calculations", () => {
     });
     expect(series.all.every((point) => point.time >= Date.UTC(2026, 0, 10) / 1000)).toBe(true);
   });
+
+  it("does not drop active holdings to zero at 1w start when held prior to the window", () => {
+    const now = Date.UTC(2026, 9, 8, 18) / 1000;
+    const weekStart = now - 7 * 86400;
+    const series = buildPortfolioChartSeries({
+      positions: [
+        {
+          ticker: "SOL",
+          company: "Solana Perp",
+          assetClass: "perp",
+          shares: 3,
+          average_cost: 100,
+          margin_used: 30,
+          side: "long",
+          bitstamp_market: "solusd-perp",
+          entry_date: "2026-08-25",
+          currency: "USD",
+          sector: "Crypto"
+        }
+      ],
+      realizedPnl: [],
+      cashEntries: [
+        { id: "cash-1", amount: 20, amount_usd: 20, currency: "USD", date: "2026-08-01" }
+      ],
+      now,
+      histories: {
+        "5d": {
+          "perp:solusd-perp": [
+            { time: weekStart + 900, open: 130, high: 135, low: 130, close: 132 },
+            { time: weekStart + 1800, open: 132, high: 134, low: 131, close: 133 }
+          ]
+        }
+      }
+    });
+
+    const w1Points = series["1w"];
+    expect(w1Points.length).toBeGreaterThan(0);
+    // Initial point must not be 0 active value (which would cause a diagonal jump)
+    expect(w1Points[0].active_value).toBeGreaterThan(0);
+    expect(w1Points[0].value).toBeGreaterThan(50);
+  });
 });

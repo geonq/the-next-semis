@@ -170,7 +170,7 @@ type BitstampHistoryRange = "1d" | "5d" | "1mo" | "1y" | "max";
 
 const bitstampHistoryConfig: Record<BitstampHistoryRange, { step: number; limit: number }> = {
   "1d": { step: 300, limit: 288 },
-  "5d": { step: 900, limit: 480 },
+  "5d": { step: 900, limit: 720 },
   "1mo": { step: 3600, limit: 720 },
   "1y": { step: 86400, limit: 365 },
   max: { step: 86400, limit: 1000 }

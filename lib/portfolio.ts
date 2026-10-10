@@ -349,10 +349,13 @@ export function buildPortfolioChartSeries({
         .map((position) => ({
           position,
           entryTime: position.entry_date ? dateToUtcSeconds(position.entry_date) : null,
-          // Fall back to the ticker key for compatibility with existing callers/tests.
-          history: (sourceHistories[portfolioHistoryKey(position)] ?? sourceHistories[position.ticker] ?? []).filter(
-            (candle) => candle.time <= now
-          )
+          // Fall back to bitstamp_market or ticker key for compatibility with existing callers/tests.
+          history: (
+            sourceHistories[portfolioHistoryKey(position)] ??
+            (position.bitstamp_market ? sourceHistories[position.bitstamp_market] : undefined) ??
+            sourceHistories[position.ticker] ??
+            []
+          ).filter((candle) => candle.time <= now)
         }));
       let start: number;
       let rangeEnd: number;
@@ -369,6 +372,15 @@ export function buildPortfolioChartSeries({
         }, null);
         rangeEnd = latestHistoryTime ?? now;
         start = Math.max(rangeStart("1d", now), firstHistoryTime ?? rangeStart("1d", now));
+      } else if (range === "1w") {
+        const firstHistoryTime = positionsWithEntryTime
+          .filter(({ entryTime, history }) => history.length > 0 && (entryTime == null || entryTime <= rangeStart("1w", now)))
+          .reduce<number | null>((acc, { history }) => {
+            const first = history[0]?.time ?? null;
+            return first == null ? acc : acc == null ? first : Math.max(acc, first);
+          }, null);
+        start = Math.max(rangeStart("1w", now), firstHistoryTime ?? rangeStart("1w", now));
+        rangeEnd = now;
       } else {
         start = rangeStart(range, now);
         rangeEnd = now;
@@ -400,6 +412,13 @@ export function buildPortfolioChartSeries({
       const sortedTimes = Array.from(times).sort((a, b) => a - b);
       const lastCloseByHistoryKey = new Map<string, number>();
       const historyIndexByHistoryKey = new Map<string, number>();
+
+      for (const { position, entryTime, history } of positionsWithEntryTime) {
+        if (history.length > 0 && (entryTime == null || entryTime <= history[0].time)) {
+          lastCloseByHistoryKey.set(portfolioHistoryKey(position), history[0].open ?? history[0].close);
+        }
+      }
+
       let realizedIndex = 0;
       let cumulativeRealized = 0;
       let cashIndex = 0;
